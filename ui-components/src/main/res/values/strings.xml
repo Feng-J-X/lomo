@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sidebar and Navigation -->
+    <string name="sidebar_memo">MEMO</string>
+    <string name="sidebar_tags">Tags</string>
+    <string name="sidebar_trash">Trash</string>
+    <string name="sidebar_daily_review">Daily Review</string>
+    <string name="sidebar_settings">Settings</string>
+    
+    <!-- Stats -->
+    <string name="stat_memo">MEMO</string>
+    <string name="stat_tag">TAG</string>
+    <string name="stat_day">DAY</string>
+    
+     <!-- Content Descriptions -->
+    <string name="cd_consume_touches">Consume touches</string>
+    <string name="cd_expand">Expand</string>
+    <string name="cd_collapse">Collapse</string>
+
+    <!-- Memo Sheet -->
+    <string name="action_copy">Copy</string>
+    <string name="action_share">Share</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="info_created">Created</string>
+    <string name="info_characters">Characters</string>
+
+    <!-- Input Sheet -->
+    <string name="input_discard_title">Discard draft?</string>
+    <string name="input_discard_message">Your unsaved content will be lost.</string>
+    <string name="input_discard_confirm">Discard</string>
+    <string name="input_discard_cancel">Keep editing</string>
+    <string name="input_select_tag">Select Tag</string>
+    <string name="cd_add_image">Add Image</string>
+    <string name="cd_add_checkbox">Add Checkbox</string>
+    <string name="cd_add_tag">Add Tag</string>
+    <string name="cd_send">Send</string>
+</resources>

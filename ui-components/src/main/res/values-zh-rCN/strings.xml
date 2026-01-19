@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sidebar_memo">备忘录</string>
+    <string name="sidebar_tags">标签</string>
+    <string name="sidebar_trash">回收站</string>
+    <string name="sidebar_daily_review">每日回顾</string>
+    <string name="sidebar_settings">设置</string>
+    
+    <string name="stat_memo">记录</string>
+    <string name="stat_tag">标签</string>
+    <string name="stat_day">天数</string>
+    
+    <string name="cd_consume_touches">Consume touches</string>
+    <string name="cd_expand">展开</string>
+    <string name="cd_collapse">折叠</string>
+
+    <!-- Memo Sheet -->
+    <string name="action_copy">复制</string>
+    <string name="action_share">分享</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_delete">删除</string>
+    <string name="info_created">创建时间</string>
+    <string name="info_characters">字符数</string>
+
+    <!-- Input Sheet -->
+    <string name="input_discard_title">放弃草稿？</string>
+    <string name="input_discard_message">未保存的内容将会丢失。</string>
+    <string name="input_discard_confirm">放弃</string>
+    <string name="input_discard_cancel">继续编辑</string>
+    <string name="input_select_tag">选择标签</string>
+    <string name="cd_add_image">添加图片</string>
+    <string name="cd_add_checkbox">添加复选框</string>
+    <string name="cd_add_tag">添加标签</string>
+    <string name="cd_send">发送</string>
+</resources>

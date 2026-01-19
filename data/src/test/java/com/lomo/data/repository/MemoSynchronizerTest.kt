@@ -1,0 +1,159 @@
+package com.lomo.data.repository
+
+import com.lomo.data.local.dao.MemoDao
+import com.lomo.data.local.entity.MemoEntity
+import com.lomo.data.parser.MarkdownParser
+import com.lomo.data.source.FileContent
+import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.FileMetadataWithId
+import com.lomo.data.util.MemoTextProcessor
+import io.mockk.*
+import io.mockk.impl.annotations.MockK
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+
+/**
+ * Unit tests for MemoSynchronizer. These tests verify the synchronization logic between file system
+ * and database.
+ */
+class MemoSynchronizerTest {
+
+        @MockK private lateinit var fileDataSource: FileDataSource
+
+        @MockK private lateinit var memoDao: MemoDao
+        @MockK private lateinit var fileSyncDao: com.lomo.data.local.dao.FileSyncDao
+        @MockK private lateinit var dataStore: com.lomo.data.local.datastore.LomoDataStore
+
+        private lateinit var processor: MemoTextProcessor
+        private lateinit var parser: MarkdownParser
+        private lateinit var synchronizer: MemoSynchronizer
+
+        @Before
+        fun setup() {
+                MockKAnnotations.init(this, relaxed = true)
+                processor = MemoTextProcessor()
+                parser = MarkdownParser(processor)
+
+                // Mock default formats
+                coEvery { dataStore.storageFilenameFormat } returns
+                        kotlinx.coroutines.flow.flowOf("yyyy_MM_dd")
+                coEvery { dataStore.storageTimestampFormat } returns
+                        kotlinx.coroutines.flow.flowOf("HH:mm:ss")
+
+                synchronizer =
+                        MemoSynchronizer(
+                                fileDataSource,
+                                memoDao,
+                                fileSyncDao,
+                                parser,
+                                processor,
+                                dataStore
+                        )
+        }
+
+        @Test
+        fun `refresh syncs new memos from files to database`() = runTest {
+                // MemoSynchronizer.refresh() uses incremental sync with metadata + document ID
+                val metadata = FileMetadataWithId(
+                        filename = "2024_01_15.md",
+                        lastModified = System.currentTimeMillis(),
+                        documentId = "doc123"
+                )
+                val fileContent = "- 10:30:00 Test memo content"
+
+                // Mock the incremental sync path
+                coEvery { fileDataSource.listMetadataWithIds() } returns listOf(metadata)
+                coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
+                coEvery { fileDataSource.readFileByDocumentId("doc123") } returns fileContent
+                coEvery { fileSyncDao.getAllSyncMetadata() } returns emptyList()
+
+                synchronizer.refresh()
+
+                // Should insert the parsed memo
+                coVerify { memoDao.insertMemos(any()) }
+        }
+
+        @Test
+        fun `refresh handles empty file list`() = runTest {
+                coEvery { fileDataSource.listMetadataWithIds() } returns emptyList()
+                coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
+                coEvery { fileSyncDao.getAllSyncMetadata() } returns emptyList()
+
+                // Should not crash
+                synchronizer.refresh()
+        }
+
+        @Test
+        fun `refresh with target filename uses listFiles path`() = runTest {
+                // When targetFilename is specified, refresh uses listFiles instead of incremental sync
+                val fileContent =
+                        FileContent(
+                                filename = "2024_01_15.md",
+                                content = "- 10:30:00 Test memo content",
+                                lastModified = System.currentTimeMillis()
+                        )
+
+                coEvery { fileDataSource.listFiles("2024_01_15.md") } returns listOf(fileContent)
+
+                synchronizer.refresh(targetFilename = "2024_01_15.md")
+
+                // Should insert the parsed memo via syncFiles
+                coVerify { memoDao.insertMemos(any()) }
+        }
+
+        @Test
+        fun `refresh does not clear when files exist but unchanged`() = runTest {
+                // When files exist but are unchanged (in sync metadata), nothing should be deleted
+                val metadata = FileMetadataWithId(
+                        filename = "2024_01_15.md",
+                        lastModified = 1000L,
+                        documentId = "doc123"
+                )
+                val syncEntity = com.lomo.data.local.entity.FileSyncEntity(
+                        filename = "2024_01_15.md",
+                        lastModified = 1000L, // Same as metadata - file unchanged
+                        isTrash = false
+                )
+
+                coEvery { fileDataSource.listMetadataWithIds() } returns listOf(metadata)
+                coEvery { fileDataSource.listTrashMetadataWithIds() } returns emptyList()
+                coEvery { fileSyncDao.getAllSyncMetadata() } returns listOf(syncEntity)
+
+                synchronizer.refresh()
+
+                // Should NOT insert or delete anything (file unchanged)
+                coVerify(exactly = 0) { memoDao.insertMemos(any()) }
+                coVerify(exactly = 0) { memoDao.clearAll() }
+        }
+
+        @Test
+        fun `saveMemo creates new memo file entry`() = runTest {
+                val timestamp = System.currentTimeMillis()
+                val content = "New memo content"
+
+                // Mock that memo doesn't exist (for unique ID check)
+                coEvery { memoDao.getMemo(any()) } returns null
+                coEvery { fileDataSource.saveFile(any(), any(), any()) } just Runs
+
+                synchronizer.saveMemo(content, timestamp)
+
+                coVerify { fileDataSource.saveFile(any(), any(), eq(true)) } // append = true
+        }
+
+        @Test
+        fun `saveMemo appends to existing file`() = runTest {
+                val timestamp = System.currentTimeMillis()
+                val content = "Another memo"
+
+                // Mock that memo doesn't exist (for unique ID check)
+                coEvery { memoDao.getMemo(any()) } returns null
+                coEvery { fileDataSource.saveFile(any(), any(), any()) } just Runs
+
+                synchronizer.saveMemo(content, timestamp)
+
+                // saveMemo always appends
+                coVerify { fileDataSource.saveFile(any(), any(), eq(true)) }
+        }
+}

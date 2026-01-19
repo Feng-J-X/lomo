@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lomo</string>
+    <string name="settings_title">设置</string>
+    
+    <!-- Storage Group -->
+    <string name="settings_group_storage">存储</string>
+    <string name="settings_memo_directory">备忘录目录</string>
+    <string name="settings_not_set">未设置</string>
+    <string name="settings_image_storage">图片存储</string>
+    <string name="settings_filename_format">文件名格式</string>
+    <string name="settings_timestamp_format">时间戳格式</string>
+    <string name="settings_auto_detect">从现有文件自动检测</string>
+    
+    <!-- Display Group -->
+    <string name="settings_group_display">显示</string>
+    <string name="settings_date_format">日期格式</string>
+    <string name="settings_time_format">时间格式</string>
+    
+    <!-- Interaction Group -->
+    <string name="settings_group_interaction">交互</string>
+    <string name="settings_haptic_feedback">触觉反馈</string>
+    <string name="settings_haptic_feedback_subtitle">触摸交互时震动</string>
+    
+    <!-- Dialog Titles -->
+    <string name="settings_select_date_format">选择日期格式</string>
+    <string name="settings_select_time_format">选择时间格式</string>
+    <string name="settings_select_filename_format">选择文件名格式</string>
+    <string name="settings_select_timestamp_format">选择时间戳格式</string>
+
+    <string name="back">返回</string>
+
+    <!-- Widget -->
+    <string name="widget_description">查看最近备忘录并快速创建</string>
+    <string name="widget_no_memos">暂无备忘录。点击 + 创建！</string>
+    
+    <!-- Share -->
+    <string name="share">分享</string>
+    <string name="copy_to_clipboard">复制到剪贴板</string>
+    <string name="copied_to_clipboard">已复制到剪贴板</string>
+
+    <!-- Settings Keys (New) -->
+    <string name="settings_language">语言</string>
+    <string name="settings_select_language">选择语言</string>
+    <string name="settings_theme_mode">主题模式</string>
+    <string name="settings_select_theme">选择主题</string>
+    <string name="settings_system">跟随系统</string>
+    <string name="settings_light_mode">浅色模式</string>
+    <string name="settings_dark_mode">深色模式</string>
+    <string name="settings_english">English</string>
+    <string name="settings_simplified_chinese">简体中文</string>
+
+    <!-- Sidebar and Navigation -->
+    <string name="sidebar_tags">标签</string>
+    <string name="sidebar_trash">回收站</string>
+    <string name="sidebar_daily_review">每日回顾</string>
+    <string name="sidebar_nav_memo">备忘录</string>
+    
+    <!-- Stats -->
+    <string name="stat_memo">记录</string>
+    <string name="stat_tag">标签</string>
+    <string name="stat_day">天数</string>
+
+    <!-- Content Descriptions -->
+    <string name="cd_menu">菜单</string>
+    <string name="cd_settings">设置</string>
+    <string name="cd_close">关闭</string>
+    <string name="cd_search">搜索</string>
+    <string name="cd_clear_filter">清除筛选</string>
+    <string name="cd_expand">展开</string>
+    <string name="cd_collapse">折叠</string>
+
+    <!-- Empty State -->
+    <string name="empty_no_directory_title">未选择文件夹</string>
+    <string name="empty_no_directory_subtitle">请在设置中选择存储文件夹</string>
+    <string name="empty_no_matches_title">未找到匹配项</string>
+    <string name="empty_no_matches_subtitle">尝试调整搜索内容</string>
+    <string name="empty_no_tag_matches_title">无标签 #%1$s 的备忘录</string>
+    <string name="empty_no_tag_matches_subtitle">尝试选择其他标签</string>
+    <string name="empty_no_memos_title">暂无备忘录</string>
+    <string name="empty_no_memos_subtitle">点击 + 创建第一条备忘录</string>
+    <string name="action_go_to_settings">前往设置</string>
+
+    <!-- Daily Review -->
+    <string name="review_no_memos_title">未找到备忘录</string>
+    <string name="review_no_memos_desc">添加一些备忘录以开始回顾。</string>
+
+    <!-- Search Screen -->
+    <string name="search_hint">搜索备忘录...</string>
+    <string name="cd_clear_search">清除搜索</string>
+    <string name="search_empty_initial_title">输入以搜索</string>
+    <string name="search_empty_initial_desc">搜索内容或标签</string>
+    <string name="search_error_generic">错误</string>
+    <string name="search_no_results_title">未找到结果</string>
+    <string name="search_no_results_desc">尝试调整搜索词</string>
+
+    <!-- Trash Screen -->
+    <string name="trash_title">回收站</string>
+    <string name="trash_empty_title">回收站为空</string>
+    <string name="trash_empty_desc">删除的备忘录会显示在这里</string>
+    <string name="action_restore">恢复</string>
+    <string name="cd_restore_memo">恢复备忘录</string>
+    <string name="action_delete_permanently">永久删除</string>
+    <string name="cd_delete_permanently">永久删除</string>
+    <string name="error_unknown">未知错误</string>
+
+    <!-- FAB -->
+    <string name="fab_new_memo">新建备忘录</string>
+</resources>

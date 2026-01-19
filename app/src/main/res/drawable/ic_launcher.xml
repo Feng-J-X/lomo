@@ -1,0 +1,56 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Background Circle -->
+    <path
+        android:fillColor="#F1F3F4"
+        android:pathData="M12,2A10,10 0 1,0 12,22A10,10 0 1,0 12,2z"/>
+
+    <!-- Paper Shadow -->
+    <path
+        android:fillColor="#E0E0E0"
+        android:pathData="M7,6h12a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2h-12a2,2 0 0,1 -2,-2v-10a2,2 0 0,1 2,-2"
+        android:translateX="0.5"
+        android:translateY="0.5"/>
+
+    <!-- Paper Body (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7,5h10a2,2 0 0,1 2,2v10a2,2 0 0,1 -2,2h-10a2,2 0 0,1 -2,-2v-10a2,2 0 0,1 2,-2z"/>
+
+    <!-- Blue Header -->
+    <path
+        android:fillColor="#4285F4"
+        android:pathData="M7,5h10a2,2 0 0,1 2,2v2h-14v-2a2,2 0 0,1 2,-2z"/>
+
+    <!-- Red Content Line -->
+    <path
+        android:fillColor="#EA4335"
+        android:pathData="M8,11h8v2h-8z"
+        android:strokeWidth="1"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"/>
+
+    <!-- Yellow Content Line (Short) -->
+    <path
+        android:fillColor="#FBBC04"
+        android:pathData="M8,15h5v2h-5z"
+        android:strokeWidth="1"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"/>
+
+    <!-- Green FAB (Action) -->
+    <path
+        android:fillColor="#34A853"
+        android:pathData="M17,19m-3,0a3,3 0 1,1 6,0a3,3 0 1,1 -6,0"/>
+    
+    <!-- White Plus in FAB -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M17,17.5v3M15.5,19h3"/>
+</vector>
