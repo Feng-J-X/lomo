@@ -10,14 +10,14 @@ plugins {
 
 android {
     namespace = "com.lomo.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.lomo.app"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        targetSdk = 36
+        versionCode = 2
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -27,10 +27,15 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            val keystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) } ?: file("debug.keystore")
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            val keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+            val keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+
+            storeFile = keystoreFile
+            storePassword = keystorePassword
+            keyAlias = keyAlias
+            this.keyPassword = keyPassword
         }
     }
 
@@ -51,6 +56,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // Enable R8 full mode checks (global flag set in gradle.properties)
             // Enable R8 full mode checks (global flag set in gradle.properties)
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("debug") // Use debug key for local testing of release build

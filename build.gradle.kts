@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.kotlinSerialization) apply false
     id("androidx.baselineprofile") version "1.3.3" apply false
     id("io.gitlab.arturbosch.detekt") version "1.23.7"
+    alias(libs.plugins.versionCatalogUpdate)
+    alias(libs.plugins.benManesVersions)
 }
 
 subprojects {
@@ -17,5 +19,19 @@ subprojects {
             force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0")
             force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0")
         }
+    }
+}
+
+// Configure the dependency update check to only offer stable versions
+fun isNonStable(version: String): Boolean {
+    val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { version.uppercase().contains(it) }
+    val regex = "^[0-9,.v-]+(-r)?$".toRegex()
+    val isStable = stableKeyword || regex.matches(version)
+    return isStable.not()
+}
+
+tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask> {
+    rejectVersionIf {
+        isNonStable(candidate.version) && !isNonStable(currentVersion)
     }
 }

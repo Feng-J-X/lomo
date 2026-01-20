@@ -22,3 +22,7 @@
 # Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+
+# Fix for R8 missing kotlin.time classes referenced by kotlinx-serialization
+-dontwarn kotlin.time.**
+-keep class kotlin.time.** { *; }

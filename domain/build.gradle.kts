@@ -1,11 +1,11 @@
 plugins {
-    alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.jetbrainsKotlinAndroid)
 }
 
 android {
     namespace = "com.lomo.domain"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26

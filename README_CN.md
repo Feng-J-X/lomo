@@ -50,7 +50,7 @@ Lomo 的灵感来自于许多优秀的前辈，如 **Memos**、**Flomo**、**Moe
 
 ### 前置要求
 - JDK 17
-- Android SDK API 35
+- Android SDK API 36
 
 ### 常用命令
 
@@ -64,7 +64,7 @@ Lomo 的灵感来自于许多优秀的前辈，如 **Memos**、**Flomo**、**Moe
 
 ## 安装设置
 
-1. 直接在 [Releases](../../releases) 页面下载最新 APK 安装包。
+1. 直接在 Releases 页面下载最新 APK 安装包。
 2. 或者，手动构建：
    1. 使用 Android Studio (推荐 Ladybug 或更新版本) 打开项目。
    2. 同步 Gradle。

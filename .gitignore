@@ -51,6 +51,8 @@ captures/
 # Uncomment the following line if you do not want to check in your keystore files
 *.jks
 *.keystore
+release.keystore
+debug.keystore
 
 # External native build folder
 .externalNativeBuild

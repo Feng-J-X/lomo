@@ -50,7 +50,7 @@ For a long time, I relied on the Thino plugin in Obsidian. While Thino covers th
 
 ### Prerequisites
 - JDK 17
-- Android SDK API 35
+- Android SDK API 36
 
 ### commands
 
@@ -64,7 +64,7 @@ For a long time, I relied on the Thino plugin in Obsidian. While Thino covers th
 
 ## Setup
 
-1. Download the latest APK from the [Releases](../../releases) page.
+1. Download the latest APK from the Releases page.
 2. Or, build manually:
    1. Open the project in Android Studio (Ladybug or newer recommended).
    2. Sync Gradle.

@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.lomo.benchmark"
-    compileSdk = 35
+    compileSdk = 36
 
     targetProjectPath = ":app"
 
