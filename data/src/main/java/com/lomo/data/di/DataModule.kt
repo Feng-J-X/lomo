@@ -44,6 +44,14 @@ object DataModule {
 
     @Provides
     @Singleton
+    fun provideFileCacheDao(database: MemoDatabase): com.lomo.data.local.dao.FileCacheDao = database.fileCacheDao()
+
+    @Provides
+    @Singleton
+    fun providePendingOpDao(database: MemoDatabase): com.lomo.data.local.dao.PendingOpDao = database.pendingOpDao()
+
+    @Provides
+    @Singleton
     fun provideMarkdownParser(): MarkdownParser = MarkdownParser()
 
     @Provides
@@ -69,7 +77,8 @@ object DataModule {
         fileSyncDao: FileSyncDao,
         parser: MarkdownParser,
         processor: com.lomo.data.util.MemoTextProcessor,
-        dataStore: com.lomo.data.local.datastore.LomoDataStore, // Injected
+        dataStore: com.lomo.data.local.datastore.LomoDataStore,
+        fileCacheDao: com.lomo.data.local.dao.FileCacheDao,
     ): com.lomo.data.repository.MemoSynchronizer =
         com.lomo.data.repository.MemoSynchronizer(
             dataSource,
@@ -78,6 +87,7 @@ object DataModule {
             parser,
             processor,
             dataStore,
+            fileCacheDao,
         )
 
     @Provides
@@ -89,7 +99,17 @@ object DataModule {
         synchronizer: com.lomo.data.repository.MemoSynchronizer,
         parser: MarkdownParser,
         dataStore: com.lomo.data.local.datastore.LomoDataStore,
-    ): MemoRepository = MemoRepositoryImpl(dao, imageCacheDao, dataSource, synchronizer, parser, dataStore)
+        pendingOpDao: com.lomo.data.local.dao.PendingOpDao,
+    ): MemoRepository =
+        MemoRepositoryImpl(
+            dao,
+            imageCacheDao,
+            dataSource,
+            synchronizer,
+            parser,
+            dataStore,
+            pendingOpDao,
+        )
 
     @Provides
     @Singleton

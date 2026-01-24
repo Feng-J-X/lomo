@@ -2,15 +2,14 @@ package com.lomo.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.lomo.ui.R
 
 // Material Design 3 Typography Scale
 // Reference: https://m3.material.io/styles/typography/type-scale-tokens
-
-import androidx.compose.ui.text.font.Font
-import com.lomo.ui.R
 
 // Define Inter Font Family using local variable font
 val InterFontFamily =

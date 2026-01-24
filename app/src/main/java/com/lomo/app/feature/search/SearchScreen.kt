@@ -7,7 +7,12 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -16,8 +21,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,6 +58,7 @@ import com.lomo.domain.model.Memo
 import com.lomo.ui.component.card.MemoCard
 import com.lomo.ui.component.common.EmptyState
 import com.lomo.ui.component.common.SkeletonMemoItem
+import com.lomo.ui.theme.MotionTokens
 import com.lomo.ui.util.formatAsDateTime
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
@@ -230,7 +250,7 @@ fun SearchScreen(
                                         val uiModel = pagedResults[index]
                                         if (uiModel != null) {
                                             val memo = uiModel.memo
-                                            val isDeleting = deletingIds.contains(memo.id)
+                                            val isDeleting = deletingIds.contains(memo.id) || uiModel.isDeleting
                                             val alpha by animateFloatAsState(
                                                 targetValue = if (isDeleting) 0f else 1f,
                                                 animationSpec =

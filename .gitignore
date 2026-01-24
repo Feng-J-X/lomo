@@ -82,6 +82,7 @@ replay_pid*
 
 # VS Code
 .vscode/
+.editorconfig
 
 # OS
 .DS_Store

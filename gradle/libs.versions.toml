@@ -26,7 +26,7 @@ media3 = "1.9.0"
 navigationCompose = "2.9.6"
 paging = "3.3.6"
 room = "2.8.4"
-serialization = "1.9.0"
+serialization = "1.10.0"
 telephoto = "0.18.0"
 timber = "5.0.1"
 work = "2.11.0"
@@ -97,11 +97,12 @@ zoomable-image-coil = { module = "me.saket.telephoto:zoomable-image-coil", versi
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
+androidTest = { id = "com.android.test", version.ref = "agp" }
+androidxBaselineProfile = "androidx.baselineprofile:1.4.1"
 benManesVersions = "com.github.ben-manes.versions:0.53.0"
 composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 jetbrainsKotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-androidxBaselineProfile = { id = "androidx.baselineprofile", version = "1.4.1" }
 versionCatalogUpdate = "nl.littlerobots.version-catalog-update:1.0.1"

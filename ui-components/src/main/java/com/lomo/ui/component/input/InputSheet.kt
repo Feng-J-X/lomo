@@ -8,10 +8,25 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -74,10 +89,21 @@ fun InputSheet(
     onStartRecording: () -> Unit = {},
     onStopRecording: () -> Unit = {},
     onCancelRecording: () -> Unit = {},
+    hints: List<String> = emptyList(),
 ) {
     var showTagSelector by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
+
+    // Hint rotation logic
+    val hintText =
+        remember(hints) {
+            if (hints.isNotEmpty()) {
+                hints.random()
+            } else {
+                ""
+            }
+        }
 
     // Track content state for dismiss protection without causing recomposition
     val currentInputValue by androidx.compose.runtime.rememberUpdatedState(inputValue)
@@ -207,7 +233,7 @@ fun InputSheet(
                                             easing = MotionTokens.EasingEmphasizedDecelerate,
                                         ),
                                 )
-                        ).togetherWith(fadeOut(animationSpec = tween(MotionTokens.DurationShort4)))
+                        ).togetherWith(fadeOut(animationSpec = tween(durationMillis = MotionTokens.DurationShort4)))
                     } else {
                         (
                             fadeIn(animationSpec = tween(MotionTokens.DurationMedium2)) +
@@ -219,7 +245,7 @@ fun InputSheet(
                                             easing = MotionTokens.EasingEmphasizedDecelerate,
                                         ),
                                 )
-                        ).togetherWith(fadeOut(animationSpec = tween(MotionTokens.DurationShort4)))
+                        ).togetherWith(fadeOut(animationSpec = tween(durationMillis = MotionTokens.DurationShort4)))
                     }
                 },
                 label = "RecordingStateTransition",
@@ -358,6 +384,38 @@ fun InputSheet(
                                     imeAction = ImeAction.Default,
                                 ),
                             keyboardActions = KeyboardActions(),
+                            placeholder = {
+                                if (hintText.isNotEmpty()) {
+                                    AnimatedContent(
+                                        targetState = hintText,
+                                        transitionSpec = {
+                                            (
+                                                fadeIn(animationSpec = tween(MotionTokens.DurationMedium2)) +
+                                                    scaleIn(
+                                                        initialScale = 0.95f,
+                                                        animationSpec =
+                                                            tween(
+                                                                MotionTokens.DurationMedium2,
+                                                                easing = MotionTokens.EasingEmphasizedDecelerate,
+                                                            ),
+                                                    )
+                                            ).togetherWith(
+                                                fadeOut(
+                                                    animationSpec =
+                                                        tween(durationMillis = MotionTokens.DurationShort4),
+                                                ),
+                                            )
+                                        },
+                                        label = "HintAnimation",
+                                    ) { targetHint ->
+                                        Text(
+                                            text = targetHint,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        )
+                                    }
+                                }
+                            },
                         )
 
                         Spacer(modifier = Modifier.height(12.dp))

@@ -24,8 +24,14 @@
 
     <!-- System Group -->
     <string name="settings_group_system">System</string>
+    <string name="settings_show_input_hints">Show input hints</string>
+    <string name="settings_show_input_hints_subtitle">Display usage tips in the input box</string>
     <string name="settings_check_updates">Check updates on startup</string>
     <string name="settings_check_updates_subtitle">Automatically check for updates when app starts</string>
+    
+    <string name="input_hint_1">Long press + to scroll to top</string>
+    <string name="input_hint_2">Triple enter to quick send</string>
+    <string name="input_hint_3">Support nested tags #tag/subtag</string>
     
     <!-- Dialog Titles -->
     <string name="settings_select_date_format">Select Date Format</string>

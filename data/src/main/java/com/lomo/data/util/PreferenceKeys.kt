@@ -25,6 +25,7 @@ object PreferenceKeys {
     // Interaction
     const val HAPTIC_FEEDBACK_ENABLED = "haptic_feedback_enabled"
     const val CHECK_UPDATES_ON_STARTUP = "check_updates_on_startup"
+    const val SHOW_INPUT_HINTS = "show_input_hints"
 
     // Default values
     object Defaults {
@@ -32,6 +33,7 @@ object PreferenceKeys {
         const val TIME_FORMAT = "HH:mm"
         const val HAPTIC_FEEDBACK_ENABLED = true
         const val CHECK_UPDATES_ON_STARTUP = true
+        const val SHOW_INPUT_HINTS = true
         const val THEME_MODE = "system"
 
         // Storage Defaults

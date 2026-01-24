@@ -68,17 +68,41 @@ class DirectStorageBackend(
     override suspend fun listMetadataWithIds(): List<FileMetadataWithId> =
         withContext(Dispatchers.IO) {
             // For direct file access, use filename as pseudo document ID
-            listMetadata().map { FileMetadataWithId(it.filename, it.lastModified, it.filename) }
+            listMetadata().map {
+                FileMetadataWithId(
+                    it.filename,
+                    it.lastModified,
+                    it.filename,
+                    File(rootDir, it.filename).absolutePath,
+                )
+            }
         }
 
     override suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId> =
         withContext(Dispatchers.IO) {
-            listTrashMetadata().map { FileMetadataWithId(it.filename, it.lastModified, it.filename) }
+            listTrashMetadata().map {
+                FileMetadataWithId(
+                    it.filename,
+                    it.lastModified,
+                    it.filename,
+                    File(trashDir, it.filename).absolutePath,
+                )
+            }
         }
 
     override suspend fun getFileMetadata(filename: String): FileMetadata? =
         withContext(Dispatchers.IO) {
             val file = File(rootDir, filename)
+            if (file.exists()) {
+                FileMetadata(filename, file.lastModified())
+            } else {
+                null
+            }
+        }
+
+    override suspend fun getTrashFileMetadata(filename: String): FileMetadata? =
+        withContext(Dispatchers.IO) {
+            val file = File(trashDir, filename)
             if (file.exists()) {
                 FileMetadata(filename, file.lastModified())
             } else {
@@ -92,6 +116,17 @@ class DirectStorageBackend(
         withContext(Dispatchers.IO) {
             val file = File(rootDir, filename)
             if (file.exists()) file.readText() else null
+        }
+
+    override suspend fun readFile(uri: Uri): String? =
+        withContext(Dispatchers.IO) {
+            // Check if it's a file URI
+            if (uri.scheme == "file") {
+                val file = File(uri.path!!)
+                if (file.exists()) file.readText() else null
+            } else {
+                null
+            }
         }
 
     override suspend fun readTrashFile(filename: String): String? =
@@ -111,11 +146,14 @@ class DirectStorageBackend(
         filename: String,
         content: String,
         append: Boolean,
-    ) = withContext(Dispatchers.IO) {
-        ensureRootExists()
-        val file = File(rootDir, filename)
-        if (append) file.appendText(content) else file.writeText(content)
-    }
+        uri: Uri?,
+    ): String? =
+        withContext(Dispatchers.IO) {
+            ensureRootExists()
+            val file = File(rootDir, filename)
+            if (append) file.appendText(content) else file.writeText(content)
+            file.absolutePath
+        }
 
     override suspend fun saveTrashFile(
         filename: String,
@@ -129,11 +167,13 @@ class DirectStorageBackend(
 
     // --- File deletion ---
 
-    override suspend fun deleteFile(filename: String) =
-        withContext(Dispatchers.IO) {
-            File(rootDir, filename).delete()
-            Unit
-        }
+    override suspend fun deleteFile(
+        filename: String,
+        uri: Uri?,
+    ) = withContext(Dispatchers.IO) {
+        File(rootDir, filename).delete()
+        Unit
+    }
 
     override suspend fun deleteTrashFile(filename: String) =
         withContext(Dispatchers.IO) {

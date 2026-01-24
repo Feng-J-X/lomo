@@ -79,6 +79,7 @@ class DailyReviewViewModel
                                     // We need storage config. For now assuming images are relative to imageDir.
                                     imagePath = imageDir,
                                     imageMap = imageMap,
+                                    isDeleting = false,
                                 )
                             }
                         }.collect { uiModels ->

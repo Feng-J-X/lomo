@@ -76,6 +76,15 @@ class SettingsViewModel
                     PreferenceKeys.Defaults.HAPTIC_FEEDBACK_ENABLED,
                 )
 
+        val showInputHints: StateFlow<Boolean> =
+            repository
+                .isShowInputHintsEnabled()
+                .stateIn(
+                    viewModelScope,
+                    SharingStarted.WhileSubscribed(5000),
+                    PreferenceKeys.Defaults.SHOW_INPUT_HINTS,
+                )
+
         val storageFilenameFormat: StateFlow<String> =
             repository
                 .getStorageFilenameFormat()
@@ -149,6 +158,10 @@ class SettingsViewModel
 
         fun updateHapticFeedback(enabled: Boolean) {
             viewModelScope.launch { repository.setHapticFeedbackEnabled(enabled) }
+        }
+
+        fun updateShowInputHints(enabled: Boolean) {
+            viewModelScope.launch { repository.setShowInputHints(enabled) }
         }
 
         fun updateCheckUpdatesOnStartup(enabled: Boolean) {

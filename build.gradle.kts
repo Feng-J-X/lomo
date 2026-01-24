@@ -29,8 +29,8 @@ fun isNonStable(version: String): Boolean {
     return isStable.not()
 }
 
-tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask> {
-    rejectVersionIf {
-        isNonStable(candidate.version) && !isNonStable(currentVersion)
-    }
-}
+// tasks.withType<com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask> {
+//     rejectVersionIf {
+//         isNonStable(candidate.version) && !isNonStable(currentVersion)
+//     }
+// }

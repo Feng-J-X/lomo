@@ -45,18 +45,13 @@ class MarkdownParser(
             if (currentTimestamp.isNotEmpty()) {
                 val fullRaw = currentRawBuilder.toString().trim()
                 val fullContent = currentContentBuilder.toString().trim()
+                val timestampLong = parseTimestamp(filename, currentTimestamp)
+
+                // Stable ID: Use filename and timestamp string.
+                // Uniqueness within a file is guaranteed by saveMemo's collision avoidance.
                 var id = "${filename}_$currentTimestamp"
 
-                // Ensure ID uniqueness to prevent LazyColumn crashes and UI duplicates
-                var collisionCount = 0
-                val originalId = id
-                while (seenIds.contains(id)) {
-                    collisionCount++
-                    id = "${originalId}_$collisionCount"
-                }
                 seenIds.add(id)
-
-                val timestampLong = parseTimestamp(filename, currentTimestamp)
 
                 result.add(
                     Memo(

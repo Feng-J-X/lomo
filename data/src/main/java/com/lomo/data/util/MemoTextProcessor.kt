@@ -37,9 +37,10 @@ class MemoTextProcessor
             val rawLines = rawContent.lines()
             val contentStartLine = rawLines.firstOrNull { it.isNotBlank() } ?: return -1 to -1
 
-            // 1. Try exact content match
+            // 1. Try exact content match (trimmed)
+            val cleanContentStart = contentStartLine.trim()
             for (i in lines.indices) {
-                if (lines[i].trim() == contentStartLine.trim()) {
+                if (lines[i].trim() == cleanContentStart) {
                     var endIndex = i
                     for (j in (i + 1) until lines.size) {
                         if (lines[j].matches(MEMO_BLOCK_END)) {

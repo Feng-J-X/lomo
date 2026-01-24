@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface MemoDao {
-    @Query("SELECT * FROM Lomo WHERE isDeleted = 0 ORDER BY timestamp DESC")
+    @Query("SELECT * FROM Lomo WHERE isDeleted = 0 ORDER BY timestamp DESC, id DESC")
     fun getAllMemos(): PagingSource<Int, MemoEntity>
 
     @Query("SELECT * FROM Lomo WHERE isDeleted = 0 ORDER BY RANDOM() LIMIT :limit")
@@ -29,7 +29,7 @@ interface MemoDao {
         SELECT * FROM Lomo 
         WHERE content LIKE '%' || :query || '%' 
         AND isDeleted = 0 
-        ORDER BY timestamp DESC
+        ORDER BY timestamp DESC, id DESC
         """,
     )
     fun searchMemos(query: String): PagingSource<Int, MemoEntity>
@@ -55,8 +55,11 @@ interface MemoDao {
     @Query("UPDATE Lomo SET isDeleted = 1 WHERE id = :id")
     suspend fun softDeleteMemo(id: String)
 
-    @Query("SELECT * FROM Lomo WHERE isDeleted = 1 ORDER BY timestamp DESC")
+    @Query("SELECT * FROM Lomo WHERE isDeleted = 1 ORDER BY timestamp DESC, id DESC")
     fun getDeletedMemos(): PagingSource<Int, MemoEntity>
+
+    @Query("DELETE FROM Lomo WHERE id = :id")
+    suspend fun deleteMemoById(id: String)
 
     @Query("DELETE FROM Lomo")
     suspend fun clearAll()
@@ -76,6 +79,12 @@ interface MemoDao {
         isDeleted: Boolean,
     ): List<MemoEntity>
 
+    @Query("DELETE FROM Lomo WHERE date = :date AND isDeleted = :isDeleted")
+    suspend fun deleteMemosByDate(
+        date: String,
+        isDeleted: Boolean,
+    )
+
     // Tag Support
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertTags(tags: List<TagEntity>)
@@ -92,12 +101,21 @@ interface MemoDao {
         INNER JOIN memo_tag_cross_ref ON Lomo.id = memo_tag_cross_ref.memoId 
         WHERE (memo_tag_cross_ref.tagName = :tag OR memo_tag_cross_ref.tagName LIKE :tag || '/%') 
         AND Lomo.isDeleted = 0
-        ORDER BY Lomo.timestamp DESC
+        ORDER BY Lomo.timestamp DESC, Lomo.id DESC
     """,
     )
     fun getMemosByTag(tag: String): PagingSource<Int, MemoEntity>
 
-    @Query("SELECT * FROM tags")
+    @Query(
+        """
+        SELECT * FROM tags 
+        WHERE name IN (
+            SELECT DISTINCT tagName FROM memo_tag_cross_ref 
+            INNER JOIN Lomo ON memo_tag_cross_ref.memoId = Lomo.id 
+            WHERE Lomo.isDeleted = 0
+        )
+    """,
+    )
     fun getAllTags(): Flow<List<TagEntity>>
 
     // Stats
@@ -108,7 +126,11 @@ interface MemoDao {
     fun getAllTimestamps(): Flow<List<Long>>
 
     @Query(
-        "SELECT name, (SELECT COUNT(*) FROM memo_tag_cross_ref INNER JOIN Lomo ON memo_tag_cross_ref.memoId = Lomo.id WHERE tagName = name AND Lomo.isDeleted = 0) as count FROM tags",
+        """
+        SELECT name, (SELECT COUNT(*) FROM memo_tag_cross_ref INNER JOIN Lomo ON memo_tag_cross_ref.memoId = Lomo.id WHERE tagName = name AND Lomo.isDeleted = 0) as count 
+        FROM tags
+        WHERE count > 0
+    """,
     )
     fun getTagCounts(): Flow<List<com.lomo.domain.model.TagCount>>
 

@@ -29,11 +29,24 @@ class SafStorageBackend(
         }
     }
 
-    private fun getTrashDir(): DocumentFile? = getRoot()?.findFile(".trash")
+    // Cache trash dir to avoid repeated findFile calls
+    private var cachedTrashDir: DocumentFile? = null
+
+    private fun getTrashDir(): DocumentFile? {
+        if (cachedTrashDir != null && cachedTrashDir!!.exists()) {
+            return cachedTrashDir
+        }
+        cachedTrashDir = getRoot()?.findFile(".trash")
+        return cachedTrashDir
+    }
 
     private fun getOrCreateTrashDir(): DocumentFile? {
+        if (cachedTrashDir != null && cachedTrashDir!!.exists()) {
+            return cachedTrashDir
+        }
         val root = getRoot() ?: return null
-        return root.findFile(".trash") ?: root.createDirectory(".trash")
+        cachedTrashDir = root.findFile(".trash") ?: root.createDirectory(".trash")
+        return cachedTrashDir
     }
 
     private fun readFileFromUri(uri: Uri): String? =
@@ -168,7 +181,13 @@ class SafStorageBackend(
                 }
             } catch (e: Exception) {
                 timber.log.Timber.e(e, "listMetadataWithIds failed, falling back")
-                listMetadata().map { FileMetadataWithId(it.filename, it.lastModified, it.filename) }
+                listMetadata().map {
+                    FileMetadataWithId(
+                        it.filename,
+                        it.lastModified,
+                        it.filename,
+                    )
+                }
             }
         }
 
@@ -194,7 +213,8 @@ class SafStorageBackend(
                 val lastModified = if (timeIndex != -1) cursor.getLong(timeIndex) else 0L
 
                 if (docId != null && name != null && name.endsWith(".md")) {
-                    result.add(FileMetadataWithId(name, lastModified, docId))
+                    val fileUri = DocumentsContract.buildDocumentUriUsingTree(rootUri, docId)
+                    result.add(FileMetadataWithId(name, lastModified, docId, fileUri.toString()))
                 }
             }
         }
@@ -214,7 +234,13 @@ class SafStorageBackend(
                 }
             } catch (e: Exception) {
                 timber.log.Timber.e(e, "listTrashMetadataWithIds failed, falling back")
-                listTrashMetadata().map { FileMetadataWithId(it.filename, it.lastModified, it.filename) }
+                listTrashMetadata().map {
+                    FileMetadataWithId(
+                        it.filename,
+                        it.lastModified,
+                        it.filename,
+                    )
+                }
             }
         }
 
@@ -229,6 +255,17 @@ class SafStorageBackend(
             }
         }
 
+    override suspend fun getTrashFileMetadata(filename: String): FileMetadata? =
+        withContext(Dispatchers.IO) {
+            val trash = getTrashDir() ?: return@withContext null
+            val file = trash.findFile(filename)
+            if (file != null) {
+                FileMetadata(filename, file.lastModified())
+            } else {
+                null
+            }
+        }
+
     // --- File reading ---
 
     override suspend fun readFile(filename: String): String? =
@@ -236,6 +273,11 @@ class SafStorageBackend(
             val root = getRoot() ?: return@withContext null
             val file = root.findFile(filename) ?: return@withContext null
             readFileFromUri(file.uri)
+        }
+
+    override suspend fun readFile(uri: Uri): String? =
+        withContext(Dispatchers.IO) {
+            readFileFromUri(uri)
         }
 
     override suspend fun readTrashFile(filename: String): String? =
@@ -271,20 +313,36 @@ class SafStorageBackend(
         filename: String,
         content: String,
         append: Boolean,
-    ) = withContext(Dispatchers.IO) {
-        val root = getRoot() ?: return@withContext
-        var file = root.findFile(filename)
-        if (file == null) {
-            file = root.createFile("text/markdown", filename)
-        }
-        file?.uri?.let { uri ->
-            val mode = if (append) "wa" else "wt"
-            context.contentResolver.openOutputStream(uri, mode)?.use {
-                it.write(content.toByteArray())
+        uri: Uri?,
+    ): String? =
+        withContext(Dispatchers.IO) {
+            if (uri != null) {
+                // O(1) optimized write
+                val mode = if (append) "wa" else "wt"
+                try {
+                    context.contentResolver.openOutputStream(uri, mode)?.use {
+                        it.write(content.toByteArray())
+                    }
+                    return@withContext uri.toString()
+                } catch (e: Exception) {
+                    // Fallback to findFile if URI is stale
+                    timber.log.Timber.w(e, "Failed to write using cached URI, falling back to findFile")
+                }
+            }
+
+            val root = getRoot() ?: return@withContext null
+            var file = root.findFile(filename)
+            if (file == null) {
+                file = root.createFile("text/markdown", filename)
+            }
+            file?.uri?.let { newUri ->
+                val mode = if (append) "wa" else "wt"
+                context.contentResolver.openOutputStream(newUri, mode)?.use {
+                    it.write(content.toByteArray())
+                }
+                newUri.toString()
             }
         }
-        Unit
-    }
 
     override suspend fun saveTrashFile(
         filename: String,
@@ -307,12 +365,24 @@ class SafStorageBackend(
 
     // --- File deletion ---
 
-    override suspend fun deleteFile(filename: String) =
-        withContext(Dispatchers.IO) {
-            val root = getRoot()
-            root?.findFile(filename)?.delete()
-            Unit
+    override suspend fun deleteFile(
+        filename: String,
+        uri: Uri?,
+    ) = withContext(Dispatchers.IO) {
+        if (uri != null) {
+            try {
+                // O(1) optimized delete
+                DocumentsContract.deleteDocument(context.contentResolver, uri)
+                return@withContext
+            } catch (e: Exception) {
+                // Fallback
+                timber.log.Timber.w(e, "Failed to delete using cached URI, falling back to findFile")
+            }
         }
+        val root = getRoot()
+        root?.findFile(filename)?.delete()
+        Unit
+    }
 
     override suspend fun deleteTrashFile(filename: String) =
         withContext(Dispatchers.IO) {

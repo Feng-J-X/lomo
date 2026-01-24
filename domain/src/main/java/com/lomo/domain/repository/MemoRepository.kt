@@ -90,6 +90,8 @@ interface MemoRepository {
     // Images & Voice
     suspend fun saveImage(uri: android.net.Uri): String
 
+    suspend fun deleteImage(filename: String)
+
     suspend fun createVoiceFile(filename: String): android.net.Uri
 
     suspend fun deleteVoiceFile(filename: String)
@@ -127,4 +129,8 @@ interface MemoRepository {
     fun isCheckUpdatesOnStartupEnabled(): Flow<Boolean>
 
     suspend fun setCheckUpdatesOnStartup(enabled: Boolean)
+
+    fun isShowInputHintsEnabled(): Flow<Boolean>
+
+    suspend fun setShowInputHints(enabled: Boolean)
 }

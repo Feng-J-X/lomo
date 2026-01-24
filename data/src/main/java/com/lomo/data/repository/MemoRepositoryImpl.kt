@@ -26,6 +26,7 @@ class MemoRepositoryImpl
         private val synchronizer: MemoSynchronizer,
         private val parser: MarkdownParser,
         private val dataStore: com.lomo.data.local.datastore.LomoDataStore,
+        private val pendingOpDao: com.lomo.data.local.dao.PendingOpDao,
     ) : MemoRepository {
         override suspend fun setRootDirectory(path: String) {
             // Clear entire database cache when switching root directory
@@ -120,7 +121,20 @@ class MemoRepositoryImpl
             content: String,
             timestamp: Long,
         ) {
-            synchronizer.saveMemo(content, timestamp)
+            val opId =
+                pendingOpDao.insert(
+                    com.lomo.data.local.entity.PendingOpEntity(
+                        type = "CREATE",
+                        payload = content,
+                        timestamp = timestamp,
+                    ),
+                )
+            try {
+                synchronizer.saveMemo(content, timestamp)
+                pendingOpDao.delete(opId)
+            } catch (e: Exception) {
+                throw e
+            }
         }
 
         override suspend fun updateMemo(
@@ -189,13 +203,19 @@ class MemoRepositoryImpl
 
         override suspend fun restoreMemo(memo: Memo) {
             synchronizer.restoreMemo(memo)
+            refreshMemos()
         }
 
         override suspend fun deletePermanently(memo: Memo) {
             synchronizer.deletePermanently(memo)
+            refreshMemos()
         }
 
         override suspend fun saveImage(uri: Uri): String = dataSource.saveImage(uri)
+
+        override suspend fun deleteImage(filename: String) {
+            dataSource.deleteImage(filename)
+        }
 
         override suspend fun createVoiceFile(filename: String): Uri = dataSource.createVoiceFile(filename)
 
@@ -270,6 +290,12 @@ class MemoRepositoryImpl
 
         override suspend fun setCheckUpdatesOnStartup(enabled: Boolean) {
             dataStore.updateCheckUpdatesOnStartup(enabled)
+        }
+
+        override fun isShowInputHintsEnabled(): Flow<Boolean> = dataStore.showInputHints
+
+        override suspend fun setShowInputHints(enabled: Boolean) {
+            dataStore.updateShowInputHints(enabled)
         }
 
         override fun getStorageFilenameFormat(): Flow<String> = dataStore.storageFilenameFormat

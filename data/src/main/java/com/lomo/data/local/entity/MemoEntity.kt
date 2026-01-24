@@ -8,7 +8,12 @@ import com.lomo.domain.model.Memo
 @Entity(
     tableName = "Lomo",
     indices =
-        [Index(value = ["timestamp"]), Index(value = ["date"]), Index(value = ["content"])],
+        [
+            Index(value = ["timestamp"]),
+            Index(value = ["date"]),
+            Index(value = ["content"]),
+            Index(value = ["isDeleted"]),
+        ],
 )
 data class MemoEntity(
     @PrimaryKey val id: String,

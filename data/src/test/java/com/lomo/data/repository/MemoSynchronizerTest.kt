@@ -27,6 +27,8 @@ class MemoSynchronizerTest {
 
     @MockK private lateinit var dataStore: com.lomo.data.local.datastore.LomoDataStore
 
+    @MockK private lateinit var fileCacheDao: com.lomo.data.local.dao.FileCacheDao
+
     private lateinit var processor: MemoTextProcessor
     private lateinit var parser: MarkdownParser
     private lateinit var synchronizer: MemoSynchronizer
@@ -51,6 +53,7 @@ class MemoSynchronizerTest {
                 parser,
                 processor,
                 dataStore,
+                fileCacheDao,
             )
     }
 
@@ -144,7 +147,7 @@ class MemoSynchronizerTest {
 
             // Mock that memo doesn't exist (for unique ID check)
             coEvery { memoDao.getMemo(any()) } returns null
-            coEvery { fileDataSource.saveFile(any(), any(), any()) } just Runs
+            coEvery { fileDataSource.saveFile(any(), any(), any()) } returns "uri"
 
             synchronizer.saveMemo(content, timestamp)
 
@@ -159,7 +162,7 @@ class MemoSynchronizerTest {
 
             // Mock that memo doesn't exist (for unique ID check)
             coEvery { memoDao.getMemo(any()) } returns null
-            coEvery { fileDataSource.saveFile(any(), any(), any()) } just Runs
+            coEvery { fileDataSource.saveFile(any(), any(), any()) } returns "uri"
 
             synchronizer.saveMemo(content, timestamp)
 

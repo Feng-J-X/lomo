@@ -8,6 +8,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -46,7 +50,7 @@ import kotlinx.coroutines.delay
 )
 @Composable
 internal fun MemoListContent(
-    memos: LazyPagingItems<MemoUiModel>,
+    memos: LazyPagingItems<Memo>,
     listState: LazyListState,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
@@ -54,11 +58,15 @@ internal fun MemoListContent(
     dateFormat: String,
     timeFormat: String,
     todoOverrides: Map<String, Map<Int, Boolean>>,
-    deletingIds: SnapshotStateList<String>,
     onMemoClick: (String, String) -> Unit,
     onTagClick: (String) -> Unit,
     onImageClick: (String) -> Unit,
     onShowMemoMenu: (MemoUiModel) -> Unit,
+    pendingMutations: Map<String, MainViewModel.MemoMutation> = emptyMap(),
+    mapper: MemoUiMapper,
+    rootDir: String?,
+    imageDir: String?,
+    imageMap: Map<String, android.net.Uri>,
 ) {
     val pullState = rememberPullToRefreshState()
     val context = LocalContext.current
@@ -73,9 +81,16 @@ internal fun MemoListContent(
             val preloadRange = (firstVisible + visibleCount)..(firstVisible + visibleCount + 5)
             preloadRange.forEach { index ->
                 if (index in 0 until memos.itemCount) {
-                    memos.peek(index)?.let { uiModel ->
-                        // Use pre-extracted image URLs
-                        uiModel.imageUrls.forEach { imageUrl ->
+                    memos.peek(index)?.let { memo ->
+                        // Resolve images for preloading
+                        val imageUrls = mutableListOf<String>()
+                        val imageRegex = Regex("!\\[.*?\\]\\((.*?)\\)")
+                        imageRegex.findAll(memo.content).forEach { match ->
+                            val url = match.groupValues[1]
+                            if (url.isNotBlank()) imageUrls.add(url)
+                        }
+
+                        imageUrls.forEach { imageUrl ->
                             if (imageUrl.isNotBlank()) {
                                 val request =
                                     ImageRequest
@@ -91,13 +106,17 @@ internal fun MemoListContent(
         }
     }
 
+    val hasItems = memos.itemCount > 0
+    val refreshState = memos.loadState.refresh
+    val isEmpty = !hasItems && refreshState is LoadState.NotLoading
+
     PullToRefreshBox(
         isRefreshing = isRefreshing,
         state = pullState,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize(),
     ) {
-        if (memos.itemCount == 0 && memos.loadState.refresh is LoadState.NotLoading) {
+        if (isEmpty) {
             com.lomo.ui.component.common.EmptyState(
                 icon = Icons.AutoMirrored.Rounded.Notes,
                 title = "No memos yet",
@@ -118,80 +137,99 @@ internal fun MemoListContent(
                             .asPaddingValues()
                             .calculateBottomPadding() + 88.dp,
                 ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
             items(
                 count = memos.itemCount,
-                key = memos.itemKey { it.memo.id },
+                key = memos.itemKey { it.id },
                 contentType = { "memo" },
             ) { index ->
-                val uiModel = memos[index]
-                if (uiModel != null) {
-                    val isDeleting = deletingIds.contains(uiModel.memo.id)
+                val memo = memos[index]
+                if (memo != null) {
+                    // Resolve optimistic mutation state locally
+                    val mutation = pendingMutations[memo.id]
+                    val isDeleting = mutation is MainViewModel.MemoMutation.Delete
+                    val isVisible = !(mutation is MainViewModel.MemoMutation.Delete && mutation.isHidden)
 
-                    // Strictly sequential state management
-                    var isVisible by remember { androidx.compose.runtime.mutableStateOf(true) }
+                    if (!isVisible) {
+                        Box(Modifier.size(0.dp))
+                    } else {
+                        val memoToRender =
+                            if (mutation is MainViewModel.MemoMutation.Update) {
+                                memo.copy(
+                                    content = mutation.newContent,
+                                )
+                            } else {
+                                memo
+                            }
 
-                    LaunchedEffect(isDeleting) {
-                        if (isDeleting) {
-                            delay(300) // Wait strictly for alpha fade
-                            isVisible = false // Then trigger shrink
-                        } else {
-                            isVisible = true
-                        }
-                    }
-
-                    val alpha by animateFloatAsState(
-                        targetValue = if (isDeleting) 0f else 1f,
-                        animationSpec =
-                            tween(
-                                durationMillis = 300,
-                                easing = androidx.compose.animation.core.LinearEasing,
-                            ),
-                        label = "ItemDeleteAlpha",
-                    )
-
-                    AnimatedVisibility(
-                        visible = isVisible,
-                        enter = EnterTransition.None,
-                        exit =
-                            shrinkVertically(
-                                animationSpec =
-                                    tween(
-                                        durationMillis = 300,
-                                    ),
-                            ),
-                        modifier =
-                            Modifier.animateItem(
-                                fadeInSpec =
-                                    keyframes {
-                                        durationMillis = 1000
-                                        0f at 0
-                                        0f at com.lomo.ui.theme.MotionTokens.DurationLong2
-                                        1f at 1000 using com.lomo.ui.theme.MotionTokens.EasingEmphasizedDecelerate
-                                    },
-                                fadeOutSpec = snap(),
-                                placementSpec =
-                                    spring<IntOffset>(
-                                        stiffness = Spring.StiffnessMedium,
-                                    ),
-                            ),
-                    ) {
-                        Column {
-                            Box(modifier = Modifier.alpha(alpha)) {
-                                MemoItemContent(
-                                    uiModel = uiModel,
-                                    onTodoClick = onTodoClick,
-                                    dateFormat = dateFormat,
-                                    timeFormat = timeFormat,
-                                    todoOverrides = todoOverrides,
-                                    onMemoClick = onMemoClick,
-                                    onTagClick = onTagClick,
-                                    onImageClick = onImageClick,
-                                    onShowMemoMenu = onShowMemoMenu,
+                        // On-demand Mapping with caching (Pure Paging Stability)
+                        // We remember the UiModel based on memo identity, content, and the mutation state.
+                        val uiModel =
+                            remember(memo.id, memoToRender.content, isDeleting, rootDir, imageDir, imageMap) {
+                                mapper.mapToUiModel(
+                                    memo = memoToRender,
+                                    rootPath = rootDir,
+                                    imagePath = imageDir,
+                                    imageMap = imageMap,
+                                    isDeleting = isDeleting,
                                 )
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
+
+                        // Time-Deterministic Animation Sequence
+                        // Total Duration: 300ms (Fade only)
+                        val totalDuration = 300f
+                        val fadeDuration = 300f
+
+                        val animationProgress by androidx.compose.runtime.produceState(initialValue = 0f, isDeleting, memo.id) {
+                            if (isDeleting && mutation is MainViewModel.MemoMutation.Delete) {
+                                while (value < 1f) {
+                                    val elapsed = System.currentTimeMillis() - mutation.timestamp
+                                    value = (elapsed.toFloat() / totalDuration).coerceIn(0f, 1f)
+                                    kotlinx.coroutines.delay(16)
+                                }
+                            } else {
+                                value = 0f
+                            }
+                        }
+
+                        // Derived states from progress
+                        val alpha = (1f - (animationProgress / (fadeDuration / totalDuration))).coerceIn(0f, 1f)
+
+                        // Note: We use Box with height scaling instead of AnimatedVisibility
+                        // to ensure the height is deterministic based on the global clock.
+                        Box(
+                            modifier =
+                                Modifier
+                                    .animateItem(
+                                        fadeInSpec =
+                                            keyframes {
+                                                durationMillis = 600
+                                                0f at 0
+                                                0f at 300
+                                                1f at 600 using com.lomo.ui.theme.MotionTokens.EasingEmphasizedDecelerate
+                                            },
+                                        fadeOutSpec = snap(),
+                                        placementSpec = spring(stiffness = Spring.StiffnessLow),
+                                    ).fillMaxWidth()
+                                    .alpha(alpha),
+                        ) {
+                            MemoItemContent(
+                                uiModel =
+                                    uiModel.copy(
+                                        memo = memoToRender,
+                                        isDeleting = isDeleting,
+                                    ),
+                                onTodoClick = onTodoClick,
+                                dateFormat = dateFormat,
+                                timeFormat = timeFormat,
+                                todoOverrides = todoOverrides,
+                                onMemoClick = onMemoClick,
+                                onTagClick = onTagClick,
+                                onImageClick = onImageClick,
+                                onShowMemoMenu = onShowMemoMenu,
+                            )
                         }
                     }
                 }

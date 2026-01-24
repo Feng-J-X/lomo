@@ -51,13 +51,16 @@ interface FileDataSource {
 
     suspend fun readFile(filename: String): String?
 
+    suspend fun readFile(uri: Uri): String?
+
     suspend fun readTrashFile(filename: String): String?
 
     suspend fun saveFile(
         filename: String,
         content: String,
         append: Boolean = false,
-    )
+        uri: Uri? = null,
+    ): String?
 
     suspend fun saveTrashFile(
         filename: String,
@@ -65,11 +68,16 @@ interface FileDataSource {
         append: Boolean = true,
     )
 
-    suspend fun deleteFile(filename: String)
+    suspend fun deleteFile(
+        filename: String,
+        uri: Uri? = null,
+    )
 
     suspend fun deleteTrashFile(filename: String)
 
     suspend fun getFileMetadata(filename: String): FileMetadata?
+
+    suspend fun getTrashFileMetadata(filename: String): FileMetadata?
 
     suspend fun exists(filename: String): Boolean
 
@@ -103,6 +111,7 @@ data class FileMetadataWithId(
     val filename: String,
     val lastModified: Long,
     val documentId: String,
+    val uriString: String? = null,
 )
 
 /**
@@ -193,15 +202,30 @@ class FileDataSourceImpl
 
         // --- Backend resolution ---
 
+        private var currentBackend: StorageBackend? = null
+        private var currentRootConfig: String? = null
+
         private suspend fun getBackend(): StorageBackend? {
             val rootUri = dataStore.rootUri.first()
             val rootDir = dataStore.rootDirectory.first()
 
-            return when {
-                rootUri != null -> SafStorageBackend(context, Uri.parse(rootUri))
-                rootDir != null -> DirectStorageBackend(java.io.File(rootDir))
-                else -> null
+            val configKey = rootUri ?: rootDir
+
+            // Return cached backend if configuration hasn't changed
+            if (currentBackend != null && currentRootConfig == configKey) {
+                return currentBackend
             }
+
+            val backend =
+                when {
+                    rootUri != null -> SafStorageBackend(context, Uri.parse(rootUri))
+                    rootDir != null -> DirectStorageBackend(java.io.File(rootDir))
+                    else -> null
+                }
+
+            currentBackend = backend
+            currentRootConfig = configKey
+            return backend
         }
 
         private suspend fun getImageBackend(): Pair<StorageBackend?, Uri?> {
@@ -231,6 +255,8 @@ class FileDataSourceImpl
 
         override suspend fun readFile(filename: String): String? = getBackend()?.readFile(filename)
 
+        override suspend fun readFile(uri: Uri): String? = getBackend()?.readFile(uri)
+
         override suspend fun readTrashFile(filename: String): String? = getBackend()?.readTrashFile(filename)
 
         override suspend fun readFileByDocumentId(documentId: String): String? = getBackend()?.readFileByDocumentId(documentId)
@@ -241,9 +267,8 @@ class FileDataSourceImpl
             filename: String,
             content: String,
             append: Boolean,
-        ) {
-            getBackend()?.saveFile(filename, content, append)
-        }
+            uri: Uri?,
+        ): String? = getBackend()?.saveFile(filename, content, append, uri)
 
         override suspend fun saveTrashFile(
             filename: String,
@@ -253,8 +278,11 @@ class FileDataSourceImpl
             getBackend()?.saveTrashFile(filename, content, append)
         }
 
-        override suspend fun deleteFile(filename: String) {
-            getBackend()?.deleteFile(filename)
+        override suspend fun deleteFile(
+            filename: String,
+            uri: Uri?,
+        ) {
+            getBackend()?.deleteFile(filename, uri)
         }
 
         override suspend fun deleteTrashFile(filename: String) {
@@ -262,6 +290,8 @@ class FileDataSourceImpl
         }
 
         override suspend fun getFileMetadata(filename: String): FileMetadata? = getBackend()?.getFileMetadata(filename)
+
+        override suspend fun getTrashFileMetadata(filename: String): FileMetadata? = getBackend()?.getTrashFileMetadata(filename)
 
         override suspend fun exists(filename: String): Boolean = getBackend()?.exists(filename) ?: false
 

@@ -6,13 +6,34 @@ import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Tag
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -30,6 +51,7 @@ import com.lomo.ui.component.common.SkeletonMemoItem
 import com.lomo.ui.component.menu.MemoMenuBottomSheet
 import com.lomo.ui.component.menu.MemoMenuHost
 import com.lomo.ui.component.menu.MemoMenuState
+import com.lomo.ui.theme.MotionTokens
 import com.lomo.ui.util.DateTimeUtils
 import com.lomo.ui.util.formatAsDateTime
 import kotlinx.collections.immutable.toImmutableList
@@ -188,62 +210,85 @@ fun TagFilterScreen(
                         ) {
                             items(
                                 count = pagedMemos.itemCount,
-                                key = pagedMemos.itemKey { it.memo.id },
+                                key = pagedMemos.itemKey { it.id },
                                 contentType = { "memo" },
                             ) { index ->
-                                val uiModel = pagedMemos[index]
-                                if (uiModel != null) {
-                                    val memo = uiModel.memo
-                                    val isDeleting = deletingIds.contains(memo.id)
-                                    val alpha by animateFloatAsState(
-                                        targetValue = if (isDeleting) 0f else 1f,
-                                        animationSpec =
-                                            tween(
-                                                durationMillis = com.lomo.ui.theme.MotionTokens.DurationLong2,
-                                                easing = com.lomo.ui.theme.MotionTokens.EasingEmphasizedAccelerate,
-                                            ),
-                                        label = "TagFilterItemDeleteAlpha",
-                                    )
+                                val memo = pagedMemos[index]
+                                if (memo != null) {
+                                    val rootDir by viewModel.rootDir.collectAsStateWithLifecycle()
+                                    val imageDir by viewModel.imageDir.collectAsStateWithLifecycle()
+                                    val imageMap by viewModel.imageMap.collectAsStateWithLifecycle()
+                                    val mutations by viewModel.pendingMutations.collectAsStateWithLifecycle()
 
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .animateItem(
-                                                    fadeInSpec =
-                                                        keyframes {
-                                                            durationMillis = 1000
-                                                            0f at 0
-                                                            0f at com.lomo.ui.theme.MotionTokens.DurationLong2
-                                                            1f at 1000 using com.lomo.ui.theme.MotionTokens.EasingEmphasizedDecelerate
-                                                        },
-                                                    fadeOutSpec = snap(),
-                                                    placementSpec =
-                                                        spring<IntOffset>(
-                                                            stiffness = Spring.StiffnessMediumLow,
-                                                        ),
-                                                ).alpha(alpha),
-                                    ) {
-                                        MemoCard(
-                                            content = memo.content,
-                                            processedContent = uiModel.processedContent,
-                                            precomputedNode = uiModel.markdownNode,
-                                            timestamp = memo.timestamp,
-                                            dateFormat = dateFormat,
-                                            timeFormat = timeFormat,
-                                            tags = uiModel.tags,
-                                            onImageClick = onNavigateToImage,
-                                            onMenuClick = {
-                                                showMenu(
-                                                    com.lomo.ui.component.menu.MemoMenuState(
-                                                        wordCount = memo.content.length,
-                                                        createdTime = memo.timestamp.formatAsDateTime(dateFormat, timeFormat),
-                                                        content = memo.content,
-                                                        memo = memo,
-                                                    ),
+                                    val mutation = mutations[memo.id]
+                                    val isDeleting = deletingIds.contains(memo.id) || mutation is TagFilterViewModel.Mutation.Delete
+                                    val isVisible = !(mutation is TagFilterViewModel.Mutation.Delete && mutation.isHidden)
+
+                                    if (!isVisible) {
+                                        Box(Modifier.size(0.dp))
+                                    } else {
+                                        // On-demand Mapping with caching
+                                        val uiModel =
+                                            remember(memo.id, memo.content, isDeleting, rootDir, imageDir, imageMap) {
+                                                viewModel.mapper.mapToUiModel(
+                                                    memo = memo,
+                                                    rootPath = rootDir,
+                                                    imagePath = imageDir,
+                                                    imageMap = imageMap,
+                                                    isDeleting = isDeleting,
                                                 )
-                                            },
-                                            menuContent = {},
+                                            }
+
+                                        val alpha by animateFloatAsState(
+                                            targetValue = if (isDeleting) 0f else 1f,
+                                            animationSpec =
+                                                tween(
+                                                    durationMillis = com.lomo.ui.theme.MotionTokens.DurationLong2,
+                                                    easing = com.lomo.ui.theme.MotionTokens.EasingEmphasizedAccelerate,
+                                                ),
+                                            label = "TagFilterItemDeleteAlpha",
                                         )
+
+                                        Box(
+                                            modifier =
+                                                Modifier
+                                                    .animateItem(
+                                                        fadeInSpec =
+                                                            keyframes {
+                                                                durationMillis = 1000
+                                                                0f at 0
+                                                                0f at com.lomo.ui.theme.MotionTokens.DurationLong2
+                                                                1f at 1000 using com.lomo.ui.theme.MotionTokens.EasingEmphasizedDecelerate
+                                                            },
+                                                        fadeOutSpec = snap(),
+                                                        placementSpec =
+                                                            spring<IntOffset>(
+                                                                stiffness = Spring.StiffnessMediumLow,
+                                                            ),
+                                                    ).alpha(alpha),
+                                        ) {
+                                            MemoCard(
+                                                content = memo.content,
+                                                processedContent = uiModel.processedContent,
+                                                precomputedNode = uiModel.markdownNode,
+                                                timestamp = memo.timestamp,
+                                                dateFormat = dateFormat,
+                                                timeFormat = timeFormat,
+                                                tags = uiModel.tags,
+                                                onImageClick = onNavigateToImage,
+                                                onMenuClick = {
+                                                    showMenu(
+                                                        com.lomo.ui.component.menu.MemoMenuState(
+                                                            wordCount = memo.content.length,
+                                                            createdTime = memo.timestamp.formatAsDateTime(dateFormat, timeFormat),
+                                                            content = memo.content,
+                                                            memo = memo,
+                                                        ),
+                                                    )
+                                                },
+                                                menuContent = {},
+                                            )
+                                        }
                                     }
                                 }
                             }

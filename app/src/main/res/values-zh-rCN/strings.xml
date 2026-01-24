@@ -25,6 +25,12 @@
 
     <!-- System Group -->
     <string name="settings_group_system">系统</string>
+    <string name="settings_show_input_hints">显示输入提示</string>
+    <string name="settings_show_input_hints_subtitle">在输入框显示使用技巧</string>
+
+    <string name="input_hint_1">长按 + 号回到顶部</string>
+    <string name="input_hint_2">回车三次快捷发送</string>
+    <string name="input_hint_3">支持嵌套标签 #tag/sub</string>
     <string name="settings_check_updates">启动时检测更新</string>
     <string name="settings_check_updates_subtitle">启动应用时自动检测新版本</string>
     

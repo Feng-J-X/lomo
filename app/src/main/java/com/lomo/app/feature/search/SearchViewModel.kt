@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import androidx.paging.filter
 import androidx.paging.map
 import com.lomo.app.feature.main.MemoUiModel
 import com.lomo.domain.model.Memo
@@ -12,14 +13,17 @@ import com.lomo.ui.util.stateInViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -56,6 +60,15 @@ class SearchViewModel
                 .getTimeFormat()
                 .stateInViewModel(viewModelScope, com.lomo.data.util.PreferenceKeys.Defaults.TIME_FORMAT)
 
+        // Optimistic UI: Pending mutations
+        private val _pendingMutations = MutableStateFlow<Map<String, Mutation>>(emptyMap())
+
+        sealed interface Mutation {
+            data class Delete(
+                val isHidden: Boolean = false,
+            ) : Mutation
+        }
+
         // Image map loading removed - using shared ImageMapProvider
 
         @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -66,18 +79,32 @@ class SearchViewModel
                     rootDirectory,
                     imageDirectory,
                     imageMapProvider.imageMap, // Use shared ImageMapProvider
-                ) { query, root, imageRoot, imageMap ->
-                    DataBundle(query, root, imageRoot, imageMap)
+                    _pendingMutations,
+                ) { query, root, imageRoot, imageMap, mutations ->
+                    DataBundle(query, root, imageRoot, imageMap, mutations)
                 }.flatMapLatest { bundle ->
                     if (bundle.query.isBlank()) {
                         kotlinx.coroutines.flow.flowOf(PagingData.empty<MemoUiModel>())
                     } else {
                         repository.searchMemos(bundle.query).map { pagingData ->
-                            pagingData.map<Memo, MemoUiModel> { memo ->
-                                mapper.mapToUiModel(memo, bundle.root, bundle.imageRoot, bundle.imageMap)
-                            }
+                            pagingData
+                                .map { memo ->
+                                    mapper.mapToUiModel(
+                                        memo = memo,
+                                        rootPath = bundle.root,
+                                        imagePath = bundle.imageRoot,
+                                        imageMap = bundle.imageMap,
+                                        isDeleting = bundle.mutations[memo.id] is Mutation.Delete,
+                                    )
+                                }.filter { memo ->
+                                    val mutation = bundle.mutations[memo.memo.id]
+                                    !(mutation is Mutation.Delete && mutation.isHidden)
+                                }
                         }
                     }
+                }.catch { e ->
+                    e.printStackTrace()
+                    emit(PagingData.empty<MemoUiModel>())
                 }.cachedIn(viewModelScope)
 
         private data class DataBundle(
@@ -85,6 +112,7 @@ class SearchViewModel
             val root: String?,
             val imageRoot: String?,
             val imageMap: Map<String, android.net.Uri>,
+            val mutations: Map<String, Mutation>,
         )
 
         fun onSearchQueryChanged(query: String) {
@@ -92,8 +120,25 @@ class SearchViewModel
         }
 
         fun deleteMemo(memo: Memo) {
+            // 1. Optimistic Delete (Visible Phase)
+            _pendingMutations.update { it + (memo.id to Mutation.Delete(isHidden = false)) }
+
             viewModelScope.launch {
-                repository.deleteMemo(memo)
+                try {
+                    // 2. Wait for UI animations (300ms)
+                    delay(300)
+
+                    // 3. Optimistic Filter (Collapse Item)
+                    _pendingMutations.update { it + (memo.id to Mutation.Delete(isHidden = true)) }
+
+                    repository.deleteMemo(memo)
+                } catch (e: Exception) {
+                    _pendingMutations.update { it - memo.id }
+                } finally {
+                    // Keep the mutation mask for 3s to ensure Paging stream reflects the deletion
+                    delay(3000)
+                    _pendingMutations.update { it - memo.id }
+                }
             }
         }
     }

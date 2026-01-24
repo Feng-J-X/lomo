@@ -41,10 +41,6 @@ interface StorageBackend {
     /**
      * List trash metadata with document IDs.
      */
-
-    /**
-     * List trash metadata with document IDs.
-     */
     suspend fun listTrashMetadataWithIds(): List<FileMetadataWithId>
 
     // --- File reading ---
@@ -54,10 +50,14 @@ interface StorageBackend {
      */
     suspend fun getFileMetadata(filename: String): FileMetadata?
 
+    suspend fun getTrashFileMetadata(filename: String): FileMetadata?
+
     /**
      * Read file content by filename.
      */
     suspend fun readFile(filename: String): String?
+
+    suspend fun readFile(uri: Uri): String?
 
     /**
      * Read trash file content by filename.
@@ -87,7 +87,8 @@ interface StorageBackend {
         filename: String,
         content: String,
         append: Boolean = false,
-    )
+        uri: Uri? = null,
+    ): String?
 
     /**
      * Save content to a trash file.
@@ -103,7 +104,10 @@ interface StorageBackend {
     /**
      * Delete a file from the root directory.
      */
-    suspend fun deleteFile(filename: String)
+    suspend fun deleteFile(
+        filename: String,
+        uri: Uri? = null,
+    )
 
     /**
      * Delete a file from the trash directory.

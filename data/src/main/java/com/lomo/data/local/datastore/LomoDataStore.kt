@@ -53,6 +53,7 @@ class LomoDataStore
             val THEME_MODE = stringPreferencesKey(PreferenceKeys.THEME_MODE)
             val HAPTIC_FEEDBACK_ENABLED = booleanPreferencesKey(PreferenceKeys.HAPTIC_FEEDBACK_ENABLED)
             val CHECK_UPDATES_ON_STARTUP = booleanPreferencesKey(PreferenceKeys.CHECK_UPDATES_ON_STARTUP)
+            val SHOW_INPUT_HINTS = booleanPreferencesKey(PreferenceKeys.SHOW_INPUT_HINTS)
         }
 
         // Storage Settings
@@ -181,6 +182,20 @@ class LomoDataStore
                     emit(PreferenceKeys.Defaults.CHECK_UPDATES_ON_STARTUP)
                 }
 
+        val showInputHints: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.SHOW_INPUT_HINTS]
+                        ?: PreferenceKeys.Defaults.SHOW_INPUT_HINTS
+                }.catch { e ->
+                    timber.log.Timber.e(
+                        "LomoDataStore",
+                        "Error in showInputHints flow",
+                        e,
+                    )
+                    emit(PreferenceKeys.Defaults.SHOW_INPUT_HINTS)
+                }
+
         // Update functions
         suspend fun updateRootUri(uri: String?) {
             dataStore.edit { prefs ->
@@ -271,5 +286,9 @@ class LomoDataStore
 
         suspend fun updateCheckUpdatesOnStartup(enabled: Boolean) {
             dataStore.edit { prefs -> prefs[Keys.CHECK_UPDATES_ON_STARTUP] = enabled }
+        }
+
+        suspend fun updateShowInputHints(enabled: Boolean) {
+            dataStore.edit { prefs -> prefs[Keys.SHOW_INPUT_HINTS] = enabled }
         }
     }

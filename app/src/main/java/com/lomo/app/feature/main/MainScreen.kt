@@ -2,12 +2,43 @@ package com.lomo.app.feature.main
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.PermanentDrawerSheet
+import androidx.compose.material3.PermanentNavigationDrawer
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -90,6 +121,7 @@ fun MainScreen(
     val dateFormat by viewModel.dateFormat.collectAsStateWithLifecycle()
     val timeFormat by viewModel.timeFormat.collectAsStateWithLifecycle()
     val hapticEnabled by viewModel.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+    val showInputHints by viewModel.showInputHints.collectAsStateWithLifecycle()
 
     // Recording State
     val isRecording by viewModel.isRecording.collectAsStateWithLifecycle()
@@ -98,11 +130,16 @@ fun MainScreen(
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val todoOverrides by viewModel.todoOverrides.collectAsStateWithLifecycle()
+    val pendingMutations by viewModel.pendingMutations.collectAsStateWithLifecycle()
+    val rootDir by viewModel.rootDirectory.collectAsStateWithLifecycle()
+    val imageDir by viewModel.imageDirectory.collectAsStateWithLifecycle()
+    val imageMap by viewModel.imageMap.collectAsStateWithLifecycle()
 
-    // Note: Auto-refresh on resume disabled to preserve scroll position
-    // when returning from ImageViewer or other in-app screens.
-    // Paging data is already cached via cachedIn(viewModelScope).
     // Manual pull-to-refresh is available for explicit data reload.
+    val hasItems = pagedMemos.itemCount > 0
+    val refreshState = pagedMemos.loadState.refresh
+    val isInitiallyLoading = refreshState is LoadState.Loading && !hasItems
+    val isEmpty = !hasItems && refreshState is LoadState.NotLoading
 
     // Host State
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -122,6 +159,7 @@ fun MainScreen(
     var editingMemo by remember { mutableStateOf<Memo?>(null) }
     var inputText by remember { mutableStateOf(TextFieldValue("")) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var hasCompletedInitialLoad by rememberSaveable { mutableStateOf(false) }
 
     // Adaptive Layout
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
@@ -136,7 +174,6 @@ fun MainScreen(
     }
 
     // Track deleting items for "fade out then delete" animation sequence
-    val deletingIds: androidx.compose.runtime.snapshots.SnapshotStateList<String> = remember { mutableStateListOf() }
 
     MemoMenuHost(
         onEdit = { state ->
@@ -157,13 +194,8 @@ fun MainScreen(
         onDelete = { state ->
             val memo = state.memo as? com.lomo.domain.model.Memo
             if (memo != null) {
-                // 1. Add to deleting set to trigger fade out
-                deletingIds.add(memo.id)
-                // 2. Wait for animation then delete (300ms fade + 300ms shrink + buffer)
-                scope.launch {
-                    delay(650)
-                    viewModel.deleteMemo(memo)
-                }
+                // Driven purely by ViewModel mutation state
+                viewModel.deleteMemo(memo)
             }
         },
         onShare = { state ->
@@ -360,44 +392,110 @@ fun MainScreen(
                                 }
 
                                 is MainViewModel.MainScreenState.Ready -> {
-                                    if (isSyncing && isEmpty) {
-                                        // First time import - show skeleton
+                                    if (isInitiallyLoading && !hasCompletedInitialLoad) {
+                                        // First time import or loading from scratch - show skeleton
                                         com.lomo.ui.component.common.MemoListSkeleton(
                                             modifier = Modifier.fillMaxSize(),
                                         )
-                                    } else if (isEmpty && refreshState is LoadState.NotLoading) {
-                                        // Empty state with directory configured
-                                        MainEmptyState(
-                                            searchQuery = searchQuery,
-                                            selectedTag = selectedTag,
-                                            hasDirectory = true,
-                                            onSettings = actions.onSettings,
-                                        )
                                     } else {
-                                        MemoListContent(
-                                            memos = pagedMemos,
-                                            listState = listState,
-                                            isRefreshing = isRefreshing,
-                                            onRefresh = actions.onRefresh,
-                                            onTodoClick = { memo, index, checked -> viewModel.updateMemo(memo, index, checked) },
-                                            dateFormat = dateFormat,
-                                            timeFormat = timeFormat,
-                                            todoOverrides = todoOverrides,
-                                            deletingIds = deletingIds, // Pass the set of IDs currently animating out
-                                            onMemoClick = actions.onMemoClick,
-                                            onTagClick = actions.onSidebarTagClick,
-                                            onImageClick = actions.onNavigateToImage,
-                                            onShowMemoMenu = { uiModel ->
-                                                showMenu(
-                                                    com.lomo.ui.component.menu.MemoMenuState(
-                                                        wordCount = uiModel.memo.content.length,
-                                                        createdTime = uiModel.memo.timestamp.formatAsDateTime(dateFormat, timeFormat),
-                                                        content = uiModel.memo.content,
-                                                        memo = uiModel.memo,
-                                                    ),
-                                                )
+                                        // Truly empty state OR refreshing (adding first item) after initial load
+                                        val showEmptyState = isEmpty || (isInitiallyLoading && hasCompletedInitialLoad)
+
+                                        if (!isInitiallyLoading) {
+                                            hasCompletedInitialLoad = true
+                                        }
+
+                                        AnimatedContent(
+                                            targetState = showEmptyState,
+                                            transitionSpec = {
+                                                if (!targetState) {
+                                                    // List appearing (Empty -> List): Fade + Scale In
+                                                    (
+                                                        fadeIn(
+                                                            animationSpec =
+                                                                tween(
+                                                                    durationMillis = MotionTokens.DurationLong2,
+                                                                    easing = MotionTokens.EasingStandard,
+                                                                ),
+                                                        ) +
+                                                            scaleIn(
+                                                                initialScale = 0.92f,
+                                                                animationSpec =
+                                                                    tween(
+                                                                        durationMillis = MotionTokens.DurationLong2,
+                                                                        easing = MotionTokens.EasingEmphasizedDecelerate,
+                                                                    ),
+                                                            )
+                                                    ) togetherWith
+                                                        fadeOut(
+                                                            animationSpec =
+                                                                tween(
+                                                                    durationMillis = MotionTokens.DurationLong2,
+                                                                    easing = MotionTokens.EasingStandard,
+                                                                ),
+                                                        )
+                                                } else {
+                                                    // Empty appearing (List -> Empty): Simple Fade
+                                                    fadeIn(
+                                                        animationSpec =
+                                                            tween(
+                                                                durationMillis = MotionTokens.DurationLong2,
+                                                                easing = MotionTokens.EasingStandard,
+                                                            ),
+                                                    ) togetherWith
+                                                        fadeOut(
+                                                            animationSpec =
+                                                                tween(
+                                                                    durationMillis = MotionTokens.DurationLong2,
+                                                                    easing = MotionTokens.EasingStandard,
+                                                                ),
+                                                        )
+                                                }
                                             },
-                                        )
+                                            label = "FirstNoteTransition",
+                                        ) { showEmpty ->
+                                            if (showEmpty) {
+                                                MainEmptyState(
+                                                    searchQuery = searchQuery,
+                                                    selectedTag = selectedTag,
+                                                    hasDirectory = true,
+                                                    onSettings = actions.onSettings,
+                                                )
+                                            } else {
+                                                MemoListContent(
+                                                    memos = pagedMemos,
+                                                    listState = listState,
+                                                    isRefreshing = isRefreshing,
+                                                    onRefresh = actions.onRefresh,
+                                                    onTodoClick = { memo, index, checked -> viewModel.updateMemo(memo, index, checked) },
+                                                    dateFormat = dateFormat,
+                                                    timeFormat = timeFormat,
+                                                    todoOverrides = todoOverrides,
+                                                    onMemoClick = actions.onMemoClick,
+                                                    onTagClick = actions.onSidebarTagClick,
+                                                    onImageClick = actions.onNavigateToImage,
+                                                    onShowMemoMenu = { uiModel ->
+                                                        showMenu(
+                                                            com.lomo.ui.component.menu.MemoMenuState(
+                                                                wordCount = uiModel.memo.content.length,
+                                                                createdTime =
+                                                                    uiModel.memo.timestamp.formatAsDateTime(
+                                                                        dateFormat,
+                                                                        timeFormat,
+                                                                    ),
+                                                                content = uiModel.memo.content,
+                                                                memo = uiModel.memo,
+                                                            ),
+                                                        )
+                                                    },
+                                                    pendingMutations = pendingMutations,
+                                                    mapper = viewModel.mapper,
+                                                    rootDir = rootDir,
+                                                    imageDir = imageDir,
+                                                    imageMap = imageMap,
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -445,6 +543,7 @@ fun MainScreen(
                     showInputSheet = false
                     inputText = TextFieldValue("")
                     editingMemo = null
+                    viewModel.discardInputs()
                 },
                 onSubmit = { content ->
                     val isNewMemo = editingMemo == null
@@ -476,6 +575,7 @@ fun MainScreen(
                 },
                 availableTags = allTags,
                 // Recording Integration
+                // Recording Integration
                 isRecording = isRecording,
                 recordingDuration = recordingDuration,
                 recordingAmplitude = recordingAmplitude,
@@ -494,6 +594,16 @@ fun MainScreen(
                         inputText = TextFieldValue(newText, TextRange(newText.length))
                     }
                 },
+                hints =
+                    if (showInputHints) {
+                        listOf(
+                            stringResource(R.string.input_hint_1),
+                            stringResource(R.string.input_hint_2),
+                            stringResource(R.string.input_hint_3),
+                        )
+                    } else {
+                        emptyList()
+                    },
             )
         }
 

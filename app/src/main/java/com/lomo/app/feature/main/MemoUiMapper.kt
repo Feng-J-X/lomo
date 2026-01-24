@@ -21,6 +21,7 @@ class MemoUiMapper
             rootPath: String?,
             imagePath: String?,
             imageMap: Map<String, Uri>,
+            isDeleting: Boolean = false,
         ): MemoUiModel {
             var newContent = memo.content
 
@@ -131,6 +132,7 @@ class MemoUiMapper
                 markdownNode = parsedNode,
                 tags = memo.tags.toImmutableList(),
                 imageUrls = imageUrls.toImmutableList(),
+                isDeleting = isDeleting,
             )
         }
     }

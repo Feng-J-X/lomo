@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.cachedIn
+import androidx.paging.filter
 import androidx.paging.map
 import com.lomo.domain.model.Memo
 import com.lomo.domain.repository.MemoRepository
@@ -11,15 +12,20 @@ import com.lomo.domain.repository.VoiceRecorder
 import com.lomo.domain.repository.WidgetRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -36,7 +42,7 @@ class MainViewModel
     constructor(
         private val repository: MemoRepository,
         private val savedStateHandle: SavedStateHandle,
-        private val mapper: MemoUiMapper,
+        val mapper: MemoUiMapper,
         private val imageMapProvider: com.lomo.domain.provider.ImageMapProvider,
         private val textProcessor: com.lomo.data.util.MemoTextProcessor,
         private val getFilteredMemosUseCase: com.lomo.domain.usecase.GetFilteredMemosUseCase,
@@ -44,6 +50,9 @@ class MainViewModel
         private val widgetRepository: WidgetRepository,
         private val audioPlayerManager: com.lomo.ui.media.AudioPlayerManager,
         private val updateManager: com.lomo.app.feature.update.UpdateManager,
+        private val createMemoUseCase: com.lomo.domain.usecase.CreateMemoUseCase,
+        private val deleteMemoUseCase: com.lomo.domain.usecase.DeleteMemoUseCase,
+        private val updateMemoUseCase: com.lomo.domain.usecase.UpdateMemoUseCase,
     ) : ViewModel() {
         private val _updateUrl = MutableStateFlow<String?>(null)
         val updateUrl: StateFlow<String?> = _updateUrl
@@ -198,6 +207,10 @@ class MainViewModel
         // Track in-flight TODO update jobs to handle race conditions: (MemoId, LineIndex) -> Job
         private val pendingTodoJobs = mutableMapOf<Pair<String, Int>, kotlinx.coroutines.Job>()
 
+        // Bug 3: Track filenames of images added during the current edit session.
+        // If the user discards the input, we delete these files.
+        private val ephemeralImageFilenames = mutableSetOf<String>()
+
         val isSyncing: StateFlow<Boolean> =
             repository
                 .isSyncing()
@@ -235,6 +248,8 @@ class MainViewModel
                 .getImageDirectory()
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
+        val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
+
         val voiceDirectory: StateFlow<String?> =
             repository
                 .getVoiceDirectory()
@@ -254,32 +269,44 @@ class MainViewModel
             }
         }
 
-        // Image map provided by shared ImageMapProvider (P2-001 refactor)
-        val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
+        // Optimistic UI: Pending mutations
+        private val _pendingMutations = MutableStateFlow<Map<String, MemoMutation>>(emptyMap())
+        val pendingMutations: StateFlow<Map<String, MemoMutation>> = _pendingMutations
+
+        sealed interface MemoMutation {
+            data class Update(
+                val newContent: String,
+                val timestamp: Long,
+            ) : MemoMutation
+
+            data class Delete(
+                val timestamp: Long,
+                val isHidden: Boolean = false,
+            ) : MemoMutation
+
+            // Creation is harder with Paging, might need separate list or RemoteMediator trick.
+            // For now, let's focus on Update/Delete responsiveness.
+            // Creation usually inserts at top.
+            data class Create(
+                val content: String,
+                val timestamp: Long,
+                val tempId: String,
+            ) : MemoMutation
+        }
 
         @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-        val pagedMemos: kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<MemoUiModel>> =
-            combine(_searchQuery, _selectedTag, rootDirectory, imageDirectory, imageMap) {
-                query,
-                tag,
-                rootDir,
-                imageDir,
-                imageMap,
-                ->
-                // Pass as a bundle
-                DataBundle(query, tag, rootDir, imageDir, imageMap)
-            }.flatMapLatest { bundle ->
-                getFilteredMemosUseCase(bundle.query, bundle.tag).map { pagingData ->
-                    pagingData.map { memo ->
-                        mapper.mapToUiModel(
-                            memo,
-                            bundle.rootDir,
-                            bundle.imageDir,
-                            bundle.imageMap,
-                        )
-                    }
-                }
+        private val rawMemosFlow =
+            combine(
+                _searchQuery,
+                _selectedTag,
+            ) { query: String, tag: String? ->
+                query to tag
+            }.flatMapLatest { pair ->
+                getFilteredMemosUseCase(pair.first, pair.second)
             }.cachedIn(viewModelScope)
+
+        val pagedMemos: kotlinx.coroutines.flow.Flow<androidx.paging.PagingData<Memo>> =
+            rawMemosFlow.cachedIn(viewModelScope)
 
         private data class DataBundle(
             val query: String,
@@ -287,6 +314,7 @@ class MainViewModel
             val rootDir: String?,
             val imageDir: String?,
             val imageMap: Map<String, android.net.Uri>,
+            val mutations: Map<String, MemoMutation>,
         )
 
         fun onDirectorySelected(path: String) {
@@ -338,9 +366,20 @@ class MainViewModel
             }
             viewModelScope.launch {
                 try {
-                    repository.saveMemo(content)
+                    // Optimistic: Create temp ID and add to pending (TODO: Paging Header Injection)
+                    // For Add, since we can't easily inject into PagingData.from(flow),
+                    // we rely on the fact that refresh() is fast or we manually refresh.
+                    // But WAIT, we can just let it be slow for now, or use a separate "Creating..." list header.
+
+                    createMemoUseCase(content)
                     // Update widget after adding memo
                     widgetRepository.updateAllWidgets()
+
+                    // Bug 3: Memo saved, keep the images
+                    ephemeralImageFilenames.clear()
+
+                    // Force refresh to pull new item (Sync might have already done it via Flow)
+                    // repository.refreshMemos() // Auto-triggered by file observer usually
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -350,15 +389,32 @@ class MainViewModel
         }
 
         fun deleteMemo(memo: Memo) {
+            val timestamp = System.currentTimeMillis()
+            // 1. Optimistic Delete (Fade Out)
+            _pendingMutations.update { it + (memo.id to MemoMutation.Delete(timestamp, isHidden = false)) }
+
             viewModelScope.launch {
                 try {
-                    repository.deleteMemo(memo)
+                    // 2. Wait for UI animations (Fade 300ms)
+                    delay(300)
+
+                    // 3. Optimistic Filter (Collapse Item)
+                    // This forces the item to be removed from PagingData immediately
+                    _pendingMutations.update { it + (memo.id to MemoMutation.Delete(timestamp, isHidden = true)) }
+
+                    deleteMemoUseCase(memo)
                     // Update widget after deleting memo
                     widgetRepository.updateAllWidgets()
                 } catch (e: kotlinx.coroutines.CancellationException) {
+                    _pendingMutations.update { it - memo.id }
                     throw e
                 } catch (e: Exception) {
                     _errorMessage.value = e.message
+                    _pendingMutations.update { it - memo.id }
+                } finally {
+                    // Keep the mutation mask for 3s to ensure Paging stream reflects the deletion
+                    delay(3000)
+                    _pendingMutations.update { it - memo.id }
                 }
             }
         }
@@ -367,15 +423,27 @@ class MainViewModel
             memo: Memo,
             newContent: String,
         ) {
+            val timestamp = System.currentTimeMillis()
+            // Optimistic Update
+            _pendingMutations.update { it + (memo.id to MemoMutation.Update(newContent, timestamp)) }
+
             viewModelScope.launch {
                 try {
-                    repository.updateMemo(memo, newContent)
+                    updateMemoUseCase(memo, newContent)
                     // Update widget after updating memo
                     widgetRepository.updateAllWidgets()
+
+                    // Bug 3: Memo saved, keep the images
+                    ephemeralImageFilenames.clear()
                 } catch (e: kotlinx.coroutines.CancellationException) {
+                    _pendingMutations.update { it - memo.id }
                     throw e
                 } catch (e: Exception) {
                     _errorMessage.value = e.message
+                    _pendingMutations.update { it - memo.id }
+                } finally {
+                    delay(5000)
+                    _pendingMutations.update { it - memo.id }
                 }
             }
         }
@@ -402,7 +470,7 @@ class MainViewModel
                 viewModelScope.launch {
                     try {
                         val newContent = textProcessor.toggleCheckbox(memo.content, lineIndex, checked)
-                        repository.updateMemo(memo, newContent)
+                        updateMemoUseCase(memo, newContent)
                         // Widget will be updated by repository or we can trigger it here if needed
                         // WidgetUpdater.updateAllWidgets(appContext)
                     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -432,8 +500,10 @@ class MainViewModel
             viewModelScope.launch {
                 try {
                     val path = repository.saveImage(uri)
+                    // Track it for Bug 3 cleanup
+                    ephemeralImageFilenames.add(path)
+
                     // Sync image cache immediately so new image is available for display
-                    repository.syncImageCache()
                     repository.syncImageCache()
                     onResult(path)
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -441,6 +511,23 @@ class MainViewModel
                 } catch (e: Exception) {
                     _errorMessage.value = "Failed to save image: ${e.message}"
                 }
+            }
+        }
+
+        fun discardInputs() {
+            // Bug 3: User abandoned input, delete session images
+            val toDelete = ephemeralImageFilenames.toList()
+            ephemeralImageFilenames.clear()
+
+            viewModelScope.launch {
+                toDelete.forEach { filename ->
+                    try {
+                        repository.deleteImage(filename)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                repository.syncImageCache()
             }
         }
 
@@ -493,22 +580,20 @@ class MainViewModel
             // No need to collect here - imageMap exposed directly from provider
 
             // Trigger sync in background whenever image directory changes
-            viewModelScope.launch {
-                imageDirectory.collect { path ->
+            imageDirectory
+                .onEach { path: String? ->
                     if (path != null) {
                         repository.syncImageCache()
                     }
-                }
-            }
+                }.launchIn(viewModelScope)
 
             // Auto-refresh memos when root directory changes
-            viewModelScope.launch {
-                rootDirectory.collect { path ->
+            rootDirectory
+                .onEach { path: String? ->
                     if (path != null) {
                         refresh()
                     }
-                }
-            }
+                }.launchIn(viewModelScope)
 
             // Check for updates on startup, independent of root directory
             checkForUpdates()
@@ -549,6 +634,17 @@ class MainViewModel
                             .HAPTIC_FEEDBACK_ENABLED,
                 )
 
+        val showInputHints: StateFlow<Boolean> =
+            repository
+                .isShowInputHintsEnabled()
+                .stateIn(
+                    scope = viewModelScope,
+                    started =
+                        kotlinx.coroutines.flow.SharingStarted
+                            .WhileSubscribed(5000),
+                    initialValue = com.lomo.data.util.PreferenceKeys.Defaults.SHOW_INPUT_HINTS,
+                )
+
         val themeMode: StateFlow<String> =
             repository
                 .getThemeMode()
@@ -577,7 +673,8 @@ data class MemoUiModel(
     val processedContent: String,
     val markdownNode: com.lomo.ui.component.markdown.ImmutableNode,
     val tags: ImmutableList<String>,
-    val imageUrls: ImmutableList<String> = kotlinx.collections.immutable.persistentListOf(),
+    val imageUrls: ImmutableList<String> = persistentListOf(),
+    val isDeleting: Boolean = false,
 )
 
 // MainUiState removed
