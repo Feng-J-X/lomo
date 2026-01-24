@@ -125,7 +125,7 @@ internal fun MemoListContent(
                     val alpha by animateFloatAsState(
                         targetValue = if (isDeleting) 0f else 1f,
                         animationSpec = tween(
-                            durationMillis = com.lomo.ui.theme.MotionTokens.DurationLong2,
+                            durationMillis = com.lomo.ui.theme.MotionTokens.DurationMedium3,
                             easing = com.lomo.ui.theme.MotionTokens.EasingEmphasizedAccelerate
                         ),
                         label = "ItemDeleteAlpha"
@@ -143,7 +143,7 @@ internal fun MemoListContent(
                                 },
                                 fadeOutSpec = snap(), // Immediate collapse after manual fade-out
                                 placementSpec = spring<IntOffset>(
-                                    stiffness = Spring.StiffnessMediumLow
+                                    stiffness = Spring.StiffnessMedium
                                 )
                             )
                             .alpha(alpha), // Apply manual fade out

@@ -158,7 +158,7 @@ fun MainScreen(
                 deletingIds.add(memo.id)
                 // 2. Wait for animation then delete
                 scope.launch {
-                    delay(550) // DurationLong2 + Buffer
+                    delay(350) // Reduced delay for snappier deletion
                     viewModel.deleteMemo(memo)
 
                 }

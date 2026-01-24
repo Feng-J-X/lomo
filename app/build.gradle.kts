@@ -58,7 +58,7 @@ android {
             // Enable R8 full mode checks (global flag set in gradle.properties)
             // Enable R8 full mode checks (global flag set in gradle.properties)
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug") // Use debug key for local testing of release build
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
