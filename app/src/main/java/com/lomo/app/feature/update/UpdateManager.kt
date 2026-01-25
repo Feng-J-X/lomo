@@ -36,6 +36,7 @@ class UpdateManager
                         val json = JSONObject(response)
                         val tagName = json.getString("tag_name") // e.g., "v1.2.0"
                         val htmlUrl = json.getString("html_url")
+                        val body = json.optString("body", "")
 
                         // Remove 'v' prefix if present for clean comparison
                         val remoteVersion = tagName.removePrefix("v")
@@ -43,6 +44,12 @@ class UpdateManager
                         val localVersion = BuildConfig.VERSION_NAME.substringBefore("-")
 
                         Timber.d("Versions - Local: $localVersion, Remote: $remoteVersion")
+
+                        // Force update check
+                        if (body.contains("[FORCE_UPDATE]")) {
+                            Timber.d("Force update triggered by release note flag")
+                            return@withContext htmlUrl
+                        }
 
                         if (isUpdateAvailable(localVersion, remoteVersion)) {
                             Timber.d("Update available: $htmlUrl")
