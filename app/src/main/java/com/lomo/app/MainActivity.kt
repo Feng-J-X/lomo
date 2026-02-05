@@ -56,6 +56,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         enableEdgeToEdge()
+        
+        handleIntent(intent)
+
         setContent {
             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
             LomoTheme(themeMode = themeMode) {
@@ -69,6 +72,31 @@ class MainActivity : AppCompatActivity() {
                                 initialAction = intent?.action,
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND) {
+            if (intent.type?.startsWith("text/") == true) {
+                intent.getStringExtra(Intent.EXTRA_TEXT)?.let { text ->
+                    viewModel.handleSharedText(text)
+                }
+            } else if (intent.type?.startsWith("image/") == true) {
+                // Try EXTRA_STREAM first
+                (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))?.let { uri ->
+                    viewModel.handleSharedImage(uri)
+                } ?: run {
+                    // Fallback to ClipData
+                    intent.clipData?.getItemAt(0)?.uri?.let { uri ->
+                         viewModel.handleSharedImage(uri)
                     }
                 }
             }
@@ -149,6 +177,9 @@ private fun LomoApp(
         color = MaterialTheme.colorScheme.background,
     ) {
         val navController = rememberNavController()
-        LomoNavHost(navController = navController)
+        LomoNavHost(
+            navController = navController,
+            viewModel = viewModel,
+        )
     }
 }

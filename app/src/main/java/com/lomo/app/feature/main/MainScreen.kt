@@ -165,6 +165,46 @@ fun MainScreen(
     val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
     val isExpanded = windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND)
 
+    // Directory Setup Dialog State (Hoisted)
+    var directorySetupType by remember { mutableStateOf<DirectorySetupType?>(null) }
+
+    // Shared Content Observation
+    val sharedContent by viewModel.sharedContent.collectAsStateWithLifecycle()
+    
+    LaunchedEffect(sharedContent, imageDir) {
+        val content = sharedContent
+        if (content != null) {
+            when (content) {
+                is MainViewModel.SharedContent.Text -> {
+                    val cur = inputText.text
+                    // Prevent duplicate processing if content is already in input (heuristic)
+                    // But strictly, consumeSharedContent handles this.
+                    // Just proceed.
+                    val newText = if (cur.isEmpty()) content.content else "$cur\n${content.content}"
+                    inputText = TextFieldValue(newText, TextRange(newText.length))
+                    showInputSheet = true
+                    viewModel.consumeSharedContent()
+                }
+                is MainViewModel.SharedContent.Image -> {
+                    if (imageDir != null) {
+                        // Logic handled via saving image in ViewModel then appending markdown
+                        viewModel.saveImage(content.uri) { path ->
+                             val markdown = "![image]($path)"
+                             val cur = inputText.text
+                             val newText = if (cur.isEmpty()) markdown else "$cur\n$markdown"
+                             inputText = TextFieldValue(newText, TextRange(newText.length))
+                             showInputSheet = true
+                             viewModel.consumeSharedContent()
+                        }
+                    } else {
+                        // Trigger directory setup if missing
+                        directorySetupType = DirectorySetupType.Image
+                    }
+                }
+            }
+        }
+    }
+
     // Effect: Error Handling
     LaunchedEffect(errorMessage) {
         errorMessage?.let {
@@ -529,8 +569,6 @@ fun MainScreen(
         }
 
         // Input Sheet
-        // Directory Setup Dialog State
-        var directorySetupType by remember { mutableStateOf<DirectorySetupType?>(null) }
         val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
         val voiceDirectory by viewModel.voiceDirectory.collectAsStateWithLifecycle()
 

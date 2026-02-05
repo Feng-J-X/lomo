@@ -237,6 +237,27 @@ class MainViewModel
             ) : MainScreenState
         }
 
+        // Shared Content State
+        sealed interface SharedContent {
+            data class Text(val content: String) : SharedContent
+            data class Image(val uri: android.net.Uri) : SharedContent
+        }
+
+        private val _sharedContent = MutableStateFlow<SharedContent?>(null)
+        val sharedContent: StateFlow<SharedContent?> = _sharedContent
+
+        fun handleSharedText(text: String) {
+            _sharedContent.value = SharedContent.Text(text)
+        }
+
+        fun handleSharedImage(uri: android.net.Uri) {
+            _sharedContent.value = SharedContent.Image(uri)
+        }
+
+        fun consumeSharedContent() {
+            _sharedContent.value = null
+        }
+
         private val _uiState = MutableStateFlow<MainScreenState>(MainScreenState.Loading)
         val uiState: StateFlow<MainScreenState> = _uiState
 

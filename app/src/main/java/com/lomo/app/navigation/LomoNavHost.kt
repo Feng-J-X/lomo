@@ -27,8 +27,17 @@ import java.nio.charset.StandardCharsets
  * Main navigation host for the Memos app.
  * Extracted from MainActivity to improve maintainability.
  */
+import com.lomo.app.feature.main.MainViewModel
+
+/**
+ * Main navigation host for the Memos app.
+ * Extracted from MainActivity to improve maintainability.
+ */
 @Composable
-fun LomoNavHost(navController: NavHostController) {
+fun LomoNavHost(
+    navController: NavHostController,
+    viewModel: MainViewModel,
+) {
     val enterTransition = {
         slideInHorizontally(
             initialOffsetX = { (it * 0.15f).toInt() },
@@ -147,6 +156,7 @@ fun LomoNavHost(navController: NavHostController) {
                         com.lomo.ui.util.LocalAnimatedVisibilityScope provides this,
                     ) {
                         MainScreen(
+                            viewModel = viewModel,
                             onNavigateToSettings = { navController.navigate(NavRoute.Settings) },
                             onNavigateToTrash = { navController.navigate(NavRoute.Trash) },
                             onNavigateToSearch = { navController.navigate(NavRoute.Search) },
