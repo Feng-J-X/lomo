@@ -27,7 +27,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Lomo"
+            android:theme="@style/Theme.App.Starting"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustNothing"
             android:configChanges="locale|layoutDirection|uiMode|orientation|screenSize|smallestScreenSize|screenLayout">

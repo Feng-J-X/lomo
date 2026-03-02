@@ -38,6 +38,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lomo.app.feature.main.MainViewModel
+import com.lomo.app.theme.applyAppNightMode
 import com.lomo.app.util.LocalShareUtils
 import com.lomo.app.util.ShareUtils
 import com.lomo.domain.repository.AppConfigRepository
@@ -92,6 +93,11 @@ class MainActivity : AppCompatActivity() {
 
         setContent {
             val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
+
+            LaunchedEffect(appPreferences.themeMode) {
+                applyAppNightMode(this@MainActivity, appPreferences.themeMode)
+            }
+
             val appLockEnabled by
                 appConfigRepository
                     .isAppLockEnabled()

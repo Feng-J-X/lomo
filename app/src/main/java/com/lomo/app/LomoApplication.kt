@@ -4,12 +4,17 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.lomo.app.BuildConfig
+import com.lomo.app.theme.applyAppNightMode
+import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.repository.AppConfigRepository
 import com.lomo.domain.repository.SyncPolicyRepository
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -19,6 +24,7 @@ class LomoApplication :
     Configuration.Provider {
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var syncPolicyRepository: SyncPolicyRepository
+    @Inject lateinit var appConfigRepository: AppConfigRepository
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override val workManagerConfiguration: Configuration
@@ -31,6 +37,8 @@ class LomoApplication :
         if (BuildConfig.DEBUG) {
             Timber.plant(Timber.DebugTree())
         }
+
+        applyStartupNightMode()
 
         // Defer non-critical worker registration off the main thread.
         appScope.launch {
@@ -46,5 +54,16 @@ class LomoApplication :
                 Timber.e(e, "Failed to schedule git sync")
             }
         }
+    }
+
+    private fun applyStartupNightMode() {
+        val themeMode =
+            runCatching {
+                runBlocking { appConfigRepository.getThemeMode().first() }
+            }.getOrElse { error ->
+                Timber.w(error, "Failed to load persisted theme mode, fallback to system")
+                ThemeMode.SYSTEM
+            }
+        applyAppNightMode(this, themeMode)
     }
 }
