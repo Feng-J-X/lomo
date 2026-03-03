@@ -43,6 +43,8 @@
     <string name="input_hint_3">Support nested tags #tag/subtag</string>
     <string name="input_hint_4">Double-tap a memo card to quickly enter edit mode</string>
     <string name="input_hint_5">Sorting tip: first tap sets ascending order; tap the same button again for descending order.</string>
+    <string name="input_hint_6">Double-tap a heatmap date to filter memos for that day</string>
+    <string name="input_hint_7">In Gallery and Daily Review, use menu Jump to open the related memo</string>
     
     <!-- Dialog Titles -->
     <string name="settings_select_date_format">Select Date Format</string>

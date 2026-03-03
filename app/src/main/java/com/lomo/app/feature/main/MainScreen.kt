@@ -248,6 +248,8 @@ fun MainScreen(
                     stringResource(R.string.input_hint_3),
                     stringResource(R.string.input_hint_4),
                     stringResource(R.string.input_hint_5),
+                    stringResource(R.string.input_hint_6),
+                    stringResource(R.string.input_hint_7),
                 )
             } else {
                 emptyList()
