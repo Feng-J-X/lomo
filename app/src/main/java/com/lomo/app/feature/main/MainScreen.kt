@@ -1,6 +1,7 @@
 package com.lomo.app.feature.main
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -337,7 +338,7 @@ fun MainScreen(
                 onClearMemoDateRange = viewModel::clearMemoDateRange,
                 onResetMemoFilter = viewModel::clearMemoListFilter,
                 onDismissMemoFilterSheet = { isMemoFilterSheetVisible = false },
-                onHeatmapDateDoubleTap = { date ->
+                onHeatmapDateLongPress = { date ->
                     viewModel.filterMemosByDate(date)
                     if (!isExpanded) {
                         scope.launch { drawerState.close() }
@@ -415,7 +416,7 @@ private fun MainScreenRenderHost(
     onClearMemoDateRange: () -> Unit,
     onResetMemoFilter: () -> Unit,
     onDismissMemoFilterSheet: () -> Unit,
-    onHeatmapDateDoubleTap: (LocalDate) -> Unit,
+    onHeatmapDateLongPress: (LocalDate) -> Unit,
     onScrollToTop: () -> Unit,
 ) {
     val sidebarContent: @Composable () -> Unit = {
@@ -430,12 +431,15 @@ private fun MainScreenRenderHost(
             onTrashClick = actions.onTrash,
             onDailyReviewClick = actions.onDailyReviewClick,
             onGalleryClick = actions.onGalleryClick,
-            onHeatmapDateDoubleClick = onHeatmapDateDoubleTap,
+            onHeatmapDateLongPress = onHeatmapDateLongPress,
             modifier = Modifier.fillMaxWidth(),
         )
     }
 
     val screenContent: @Composable () -> Unit = {
+        val isFabVisible by remember {
+            androidx.compose.runtime.derivedStateOf { scrollBehavior.state.collapsedFraction < 0.9f }
+        }
         Scaffold(
             modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -457,7 +461,7 @@ private fun MainScreenRenderHost(
             },
             floatingActionButton = {
                 MainFab(
-                    isVisible = scrollBehavior.state.collapsedFraction < 0.9f,
+                    isVisible = isFabVisible,
                     onClick = actions.onFabClick,
                     modifier = Modifier.offset(y = (-16).dp),
                     onLongClick = onScrollToTop,
@@ -514,29 +518,38 @@ private fun MainScreenRenderHost(
 
                         is MainViewModel.MainScreenState.Ready -> {
                             MainReadyStateEnterContainer {
-                                if (!hasItems) {
-                                    MainEmptyState(
-                                        searchQuery = searchQuery,
-                                        selectedTag = selectedTag,
-                                        hasDirectory = true,
-                                        onSettings = actions.onSettings,
-                                    )
-                                } else {
-                                    MemoListContent(
-                                        memos = uiMemos,
-                                        listState = listState,
-                                        isRefreshing = isRefreshing,
-                                        onRefresh = actions.onRefresh,
-                                        onVisibleMemoIdsChanged = onVisibleMemoIdsChanged,
-                                        onTodoClick = onTodoClick,
-                                        dateFormat = dateFormat,
-                                        timeFormat = timeFormat,
-                                        onMemoDoubleClick = onMemoDoubleClick,
-                                        doubleTapEditEnabled = doubleTapEditEnabled,
-                                        onTagClick = actions.onSidebarTagClick,
-                                        onImageClick = actions.onNavigateToImage,
-                                        onShowMemoMenu = onShowMemoMenu,
-                                    )
+                                Crossfade(
+                                    targetState = hasItems,
+                                    animationSpec = tween(
+                                        durationMillis = MotionTokens.DurationMedium2,
+                                        easing = MotionTokens.EasingStandard,
+                                    ),
+                                    label = "ReadyContentCrossfade",
+                                ) { showList ->
+                                    if (!showList) {
+                                        MainEmptyState(
+                                            searchQuery = searchQuery,
+                                            selectedTag = selectedTag,
+                                            hasDirectory = true,
+                                            onSettings = actions.onSettings,
+                                        )
+                                    } else {
+                                        MemoListContent(
+                                            memos = uiMemos,
+                                            listState = listState,
+                                            isRefreshing = isRefreshing,
+                                            onRefresh = actions.onRefresh,
+                                            onVisibleMemoIdsChanged = onVisibleMemoIdsChanged,
+                                            onTodoClick = onTodoClick,
+                                            dateFormat = dateFormat,
+                                            timeFormat = timeFormat,
+                                            onMemoDoubleClick = onMemoDoubleClick,
+                                            doubleTapEditEnabled = doubleTapEditEnabled,
+                                            onTagClick = actions.onSidebarTagClick,
+                                            onImageClick = actions.onNavigateToImage,
+                                            onShowMemoMenu = onShowMemoMenu,
+                                        )
+                                    }
                                 }
                             }
                         }

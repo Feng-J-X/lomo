@@ -190,9 +190,9 @@ fun InputSheet(
         if (isDismissing) return@dismiss
         isDismissing = true
         scope.launch {
-            isSheetVisible = false
             keyboardController?.hide()
-            // Keep panel visible briefly so it rides with IME hide animation.
+            delay(150)
+            isSheetVisible = false
             delay(MotionTokens.DurationLong2.toLong())
             onDismiss()
         }
@@ -211,8 +211,7 @@ fun InputSheet(
             return@LaunchedEffect
         }
 
-        withFrameNanos { }
-        withFrameNanos { }
+        delay(MotionTokens.DurationLong2.toLong())
         focusRequester.requestFocus()
         keyboardController?.show()
     }
@@ -380,7 +379,7 @@ private fun InputSheetScaffold(
         animationSpec =
             androidx.compose.animation.core.tween(
                 durationMillis = MotionTokens.DurationLong2,
-                easing = MotionTokens.EasingStandard,
+                easing = androidx.compose.animation.core.LinearEasing,
             ),
         label = "InputSheetScrimAlpha",
     )

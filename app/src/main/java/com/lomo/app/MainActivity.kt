@@ -153,6 +153,7 @@ class MainActivity : AppCompatActivity() {
             val showLockGate = appLockEnabled == true && !hasUnlockedThisLaunch
 
             LomoTheme(themeMode = appPreferences.themeMode.value) {
+                androidx.activity.compose.ReportDrawnWhen { !showLockGate }
                 com.lomo.ui.util.ProvideAppHapticFeedback(enabled = appPreferences.hapticFeedbackEnabled) {
                     AnimatedContent(
                         targetState = showLockGate,

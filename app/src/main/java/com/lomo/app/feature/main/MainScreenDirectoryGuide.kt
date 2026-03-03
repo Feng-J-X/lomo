@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import com.lomo.app.R
+import com.lomo.ui.util.LocalAppHapticFeedback
 
 enum class DirectorySetupType(
     val labelResId: Int,
@@ -90,7 +91,11 @@ private fun DirectorySetupDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onGoToSettings) {
+            val haptic = LocalAppHapticFeedback.current
+            TextButton(onClick = {
+                haptic.medium()
+                onGoToSettings()
+            }) {
                 Text(stringResource(R.string.action_go_to_settings))
             }
         },

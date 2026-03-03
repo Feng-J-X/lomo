@@ -72,11 +72,7 @@ internal fun MainMemoFilterSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val haptic = LocalAppHapticFeedback.current
     var datePickerTarget by rememberSaveable { mutableStateOf<DatePickerTarget?>(null) }
-    val activeFilterCount =
-        buildList {
-            if (filter.startDate != null) add(Unit)
-            if (filter.endDate != null) add(Unit)
-        }.size
+    val hasDateFilter = filter.startDate != null || filter.endDate != null
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -94,7 +90,7 @@ internal fun MainMemoFilterSheet(
                     .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(AppSpacing.Medium),
         ) {
-            MainMemoFilterHeader(activeFilterCount = activeFilterCount)
+            MainMemoFilterHeader()
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -118,7 +114,7 @@ internal fun MainMemoFilterSheet(
             MainMemoFilterSectionCard(
                 icon = Icons.Rounded.CalendarMonth,
                 title = stringResource(R.string.main_filter_section_time_range),
-                subtitle = stringResource(R.string.main_filter_date_section_hint),
+                isActive = hasDateFilter,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -189,18 +185,11 @@ internal fun MainMemoFilterSheet(
 }
 
 @Composable
-private fun MainMemoFilterHeader(activeFilterCount: Int) {
-    val summaryText =
-        if (activeFilterCount == 0) {
-            stringResource(R.string.main_filter_summary_none)
-        } else {
-            stringResource(R.string.main_filter_summary_active, activeFilterCount)
-        }
-
+private fun MainMemoFilterHeader() {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(AppSpacing.Small),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Surface(
             color = MaterialTheme.colorScheme.primaryContainer,
@@ -213,17 +202,10 @@ private fun MainMemoFilterHeader(activeFilterCount: Int) {
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         }
-        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.ExtraSmall)) {
-            Text(
-                text = stringResource(R.string.main_filter_title),
-                style = MaterialTheme.typography.titleLarge,
-            )
-            Text(
-                text = summaryText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        Text(
+            text = stringResource(R.string.main_filter_title),
+            style = MaterialTheme.typography.titleMedium,
+        )
     }
 }
 
@@ -231,7 +213,7 @@ private fun MainMemoFilterHeader(activeFilterCount: Int) {
 private fun MainMemoFilterSectionCard(
     icon: ImageVector,
     title: String,
-    subtitle: String? = null,
+    isActive: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -249,23 +231,14 @@ private fun MainMemoFilterSectionCard(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(AppSpacing.Small),
                     )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.ExtraSmall)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    if (!subtitle.isNullOrBlank()) {
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
             Spacer(modifier = Modifier.height(AppSpacing.ExtraSmall))
             content()
@@ -362,7 +335,7 @@ private fun MainMemoDateField(
                 Icon(
                     imageVector = Icons.Rounded.CalendarMonth,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = if (hasValue) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp),
                 )
                 Text(

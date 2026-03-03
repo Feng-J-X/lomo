@@ -86,7 +86,7 @@ fun SidebarDrawer(
     onDailyReviewClick: () -> Unit = {},
     onGalleryClick: () -> Unit = {},
     onTagClick: (String) -> Unit = {},
-    onHeatmapDateDoubleClick: (LocalDate) -> Unit = {},
+    onHeatmapDateLongPress: (LocalDate) -> Unit = {},
     onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -164,7 +164,7 @@ fun SidebarDrawer(
         item {
             CalendarHeatmap(
                 memoCountByDate = memoCountByDate,
-                onDateDoubleTap = onHeatmapDateDoubleClick,
+                onDateLongPress = onHeatmapDateLongPress,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(AppSpacing.Medium))

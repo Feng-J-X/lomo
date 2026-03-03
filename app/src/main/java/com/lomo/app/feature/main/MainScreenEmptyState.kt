@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.rounded.NoteAdd
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import com.lomo.ui.util.LocalAppHapticFeedback
 
 /**
  * P2-008 Refactor: Extracted EmptyState from MainScreen.kt
@@ -77,7 +78,11 @@ internal fun MainEmptyState(
         action =
             if (!hasDirectory) {
                 {
-                    Button(onClick = onSettings) {
+                    val haptic = LocalAppHapticFeedback.current
+                    Button(onClick = {
+                        haptic.medium()
+                        onSettings()
+                    }) {
                         Text(
                             androidx.compose.ui.res
                                 .stringResource(com.lomo.app.R.string.action_go_to_settings),

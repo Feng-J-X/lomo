@@ -59,7 +59,7 @@ import java.util.Locale
 @Composable
 fun CalendarHeatmap(
     memoCountByDate: Map<LocalDate, Int>,
-    onDateDoubleTap: (LocalDate) -> Unit = {},
+    onDateLongPress: (LocalDate) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val today = LocalDate.now()
@@ -103,7 +103,8 @@ fun CalendarHeatmap(
     // Interaction State
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var popupOffset by remember { mutableStateOf(Offset.Zero) }
-    val latestOnDateDoubleTap by rememberUpdatedState(onDateDoubleTap)
+    val latestOnDateLongPress by rememberUpdatedState(onDateLongPress)
+    val haptic = com.lomo.ui.util.LocalAppHapticFeedback.current
     val horizontalScrollState = rememberScrollState()
 
     BoxWithConstraints(
@@ -197,12 +198,13 @@ fun CalendarHeatmap(
                                                 )
                                         }
                                     },
-                                    onDoubleTap = { offset ->
+                                    onLongPress = { offset ->
                                         val currentStartDay = latestStartDay
                                         val currentToday = latestToday
                                         val hit = resolveTappedCell(offset, currentStartDay, currentToday) ?: return@detectTapGestures
 
-                                        latestOnDateDoubleTap(hit.date)
+                                        haptic.longPress()
+                                        latestOnDateLongPress(hit.date)
                                         selectedDate = null
                                     },
                                 )
