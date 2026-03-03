@@ -1,6 +1,11 @@
 package com.lomo.app.navigation
 
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,6 +23,8 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
+private const val BACK_NAVIGATION_THROTTLE_MILLIS = 500L
+
 /**
  * Main navigation host for the Memos app.
  * Extracted from MainActivity to improve maintainability.
@@ -27,6 +34,15 @@ fun LomoNavHost(
     navController: NavHostController,
     viewModel: MainViewModel,
 ) {
+    var lastBackNavigationTime by remember { mutableLongStateOf(0L) }
+    val popBackStackSafely: () -> Unit = {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastBackNavigationTime >= BACK_NAVIGATION_THROTTLE_MILLIS) {
+            lastBackNavigationTime = now
+            navController.popBackStackOrNavigateMain()
+        }
+    }
+
     val navigateToShare: (String, Long) -> Unit = { content, timestamp ->
         val payloadKey = ShareRoutePayloadStore.putMemoContent(content)
         navController.navigate(
@@ -73,19 +89,19 @@ fun LomoNavHost(
 
                 composable<NavRoute.Settings> {
                     SettingsScreen(
-                        onBackClick = { navController.popBackStack() },
+                        onBackClick = popBackStackSafely,
                     )
                 }
 
                 composable<NavRoute.Trash> {
                     TrashScreen(
-                        onBackClick = { navController.popBackStack() },
+                        onBackClick = popBackStackSafely,
                     )
                 }
 
                 composable<NavRoute.Search> {
                     SearchScreen(
-                        onBackClick = { navController.popBackStack() },
+                        onBackClick = popBackStackSafely,
                         onNavigateToShare = navigateToShare,
                     )
                 }
@@ -97,7 +113,7 @@ fun LomoNavHost(
                     ) {
                         TagFilterScreen(
                             tagName = tag.tagName,
-                            onBackClick = { navController.popBackStack() },
+                            onBackClick = popBackStackSafely,
                             onNavigateToImage = { url ->
                                 val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
                                 navController.navigate(NavRoute.ImageViewer(encoded))
@@ -112,7 +128,7 @@ fun LomoNavHost(
                         com.lomo.ui.util.LocalAnimatedVisibilityScope provides this,
                     ) {
                         com.lomo.app.feature.review.DailyReviewScreen(
-                            onBackClick = { navController.popBackStack() },
+                            onBackClick = popBackStackSafely,
                             onNavigateToImage = { url ->
                                 val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
                                 navController.navigate(NavRoute.ImageViewer(encoded))
@@ -120,9 +136,7 @@ fun LomoNavHost(
                             onNavigateToShare = navigateToShare,
                             onNavigateToMemo = { memoId ->
                                 viewModel.requestFocusMemo(memoId)
-                                if (!navController.popBackStack()) {
-                                    navController.navigate(NavRoute.Main)
-                                }
+                                navController.popBackStackOrNavigateMain()
                             },
                         )
                     }
@@ -131,7 +145,7 @@ fun LomoNavHost(
                 composable<NavRoute.Gallery> {
                     GalleryScreen(
                         viewModel = viewModel,
-                        onBackClick = { navController.popBackStack() },
+                        onBackClick = popBackStackSafely,
                         onNavigateToImage = { url ->
                             val encoded = URLEncoder.encode(url, StandardCharsets.UTF_8.toString())
                             navController.navigate(NavRoute.ImageViewer(encoded))
@@ -142,7 +156,7 @@ fun LomoNavHost(
 
                 composable<NavRoute.Share> {
                     ShareScreen(
-                        onBackClick = { navController.popBackStack() },
+                        onBackClick = popBackStackSafely,
                     )
                 }
 
@@ -160,11 +174,19 @@ fun LomoNavHost(
                     ) {
                         ImageViewerScreen(
                             url = decodedUrl,
-                            onBackClick = { navController.popBackStack() },
+                            onBackClick = popBackStackSafely,
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+private fun NavHostController.popBackStackOrNavigateMain() {
+    if (!popBackStack()) {
+        navigate(NavRoute.Main) {
+            launchSingleTop = true
         }
     }
 }
