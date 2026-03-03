@@ -335,6 +335,12 @@ fun MainScreen(
                 onClearMemoDateRange = viewModel::clearMemoDateRange,
                 onResetMemoFilter = viewModel::clearMemoListFilter,
                 onDismissMemoFilterSheet = { isMemoFilterSheetVisible = false },
+                onHeatmapDateDoubleTap = { date ->
+                    viewModel.filterMemosByDate(date)
+                    if (!isExpanded) {
+                        scope.launch { drawerState.close() }
+                    }
+                },
                 onScrollToTop = {
                     scope.launch {
                         if (listState.firstVisibleItemIndex > 10) {
@@ -407,6 +413,7 @@ private fun MainScreenRenderHost(
     onClearMemoDateRange: () -> Unit,
     onResetMemoFilter: () -> Unit,
     onDismissMemoFilterSheet: () -> Unit,
+    onHeatmapDateDoubleTap: (LocalDate) -> Unit,
     onScrollToTop: () -> Unit,
 ) {
     val sidebarContent: @Composable () -> Unit = {
@@ -421,6 +428,7 @@ private fun MainScreenRenderHost(
             onTrashClick = actions.onTrash,
             onDailyReviewClick = actions.onDailyReviewClick,
             onGalleryClick = actions.onGalleryClick,
+            onHeatmapDateDoubleClick = onHeatmapDateDoubleTap,
             modifier = Modifier.fillMaxWidth(),
         )
     }

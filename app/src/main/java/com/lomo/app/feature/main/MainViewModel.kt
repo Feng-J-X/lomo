@@ -283,6 +283,10 @@ class MainViewModel
             _memoListFilter.value = current.copy(startDate = adjustedStart, endDate = endDate)
         }
 
+        fun filterMemosByDate(date: LocalDate) {
+            _memoListFilter.value = _memoListFilter.value.copy(startDate = date, endDate = date)
+        }
+
         fun clearMemoDateRange() {
             _memoListFilter.value = _memoListFilter.value.copy(startDate = null, endDate = null)
         }
