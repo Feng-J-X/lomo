@@ -11,7 +11,7 @@ import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.MemoTagCrossRefEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 
-const val MEMO_DATABASE_VERSION = 24
+const val MEMO_DATABASE_VERSION = 25
 
 @Database(
     entities =

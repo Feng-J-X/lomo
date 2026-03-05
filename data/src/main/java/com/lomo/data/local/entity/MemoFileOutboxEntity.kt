@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
         [
             Index(value = ["memoId"]),
             Index(value = ["createdAt"]),
+            Index(value = ["claimToken"]),
+            Index(value = ["claimUpdatedAt"]),
         ],
 )
 data class MemoFileOutboxEntity(
@@ -26,6 +28,8 @@ data class MemoFileOutboxEntity(
     val updatedAt: Long = System.currentTimeMillis(),
     val retryCount: Int = 0,
     val lastError: String? = null,
+    val claimToken: String? = null,
+    val claimUpdatedAt: Long? = null,
 )
 
 object MemoFileOutboxOp {

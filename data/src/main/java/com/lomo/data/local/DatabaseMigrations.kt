@@ -105,6 +105,13 @@ val MIGRATION_23_24: Migration =
         }
     }
 
+val MIGRATION_24_25: Migration =
+    object : Migration(24, 25) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            normalizeMemoFileOutboxTable(db)
+        }
+    }
+
 /**
  * Consolidation migrations that bring ANY schema version directly to the
  * current [MEMO_DATABASE_VERSION] in a single step.
@@ -138,6 +145,7 @@ val ALL_DATABASE_MIGRATIONS: Array<Migration> =
             MIGRATION_21_22,
             MIGRATION_22_23,
             MIGRATION_23_24,
+            MIGRATION_24_25,
         )
 
 /**
@@ -149,6 +157,7 @@ val ALL_DATABASE_MIGRATIONS: Array<Migration> =
  * Phase A: Normalize all tables to the v22 baseline schema.
  * Phase B: Apply v22→v23 changes (drop content index).
  * Phase C: Apply v23→v24 changes (add updatedAt column).
+ * Phase D: Apply v24→v25 changes (outbox claim columns).
  *
  * When adding a new schema version, append a new Phase here.
  */
@@ -190,6 +199,9 @@ private fun consolidateToCurrentSchema(db: SupportSQLiteDatabase) {
     // ── Phase C: v23 → v24 (add updatedAt column) ───────────────────
     migrateMemoUpdatedAtColumn(db, tableName = "Lomo")
     migrateMemoUpdatedAtColumn(db, tableName = "LomoTrash")
+
+    // ── Phase D: v24 → v25 (outbox claim columns) ───────────────────
+    normalizeMemoFileOutboxTable(db)
 }
 
 private fun migrateLegacyMemosTable(db: SupportSQLiteDatabase) {
@@ -460,6 +472,8 @@ private fun normalizeMemoFileOutboxTable(db: SupportSQLiteDatabase) {
     val updatedAtExpr = pickIntExpr(columns, "updatedAt", "createdAt", defaultExpr = nowExpr)
     val retryCountExpr = pickIntExpr(columns, "retryCount")
     val lastErrorExpr = pickNullableTextExpr(columns, "lastError")
+    val claimTokenExpr = pickNullableTextExpr(columns, "claimToken")
+    val claimUpdatedAtExpr = pickNullableIntExpr(columns, "claimUpdatedAt")
 
     db.execSQL(
         """
@@ -475,7 +489,9 @@ private fun normalizeMemoFileOutboxTable(db: SupportSQLiteDatabase) {
             `createdAt`,
             `updatedAt`,
             `retryCount`,
-            `lastError`
+            `lastError`,
+            `claimToken`,
+            `claimUpdatedAt`
         )
         SELECT
             $idExpr,
@@ -489,7 +505,9 @@ private fun normalizeMemoFileOutboxTable(db: SupportSQLiteDatabase) {
             $createdAtExpr,
             $updatedAtExpr,
             $retryCountExpr,
-            $lastErrorExpr
+            $lastErrorExpr,
+            $claimTokenExpr,
+            $claimUpdatedAtExpr
         FROM `$legacyTable`
         """.trimIndent(),
     )
@@ -512,12 +530,16 @@ private fun createMemoFileOutboxTable(db: SupportSQLiteDatabase) {
             `createdAt` INTEGER NOT NULL,
             `updatedAt` INTEGER NOT NULL,
             `retryCount` INTEGER NOT NULL,
-            `lastError` TEXT
+            `lastError` TEXT,
+            `claimToken` TEXT,
+            `claimUpdatedAt` INTEGER
         )
         """.trimIndent(),
     )
     db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_memoId` ON `MemoFileOutbox` (`memoId`)")
     db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_createdAt` ON `MemoFileOutbox` (`createdAt`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_claimToken` ON `MemoFileOutbox` (`claimToken`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_claimUpdatedAt` ON `MemoFileOutbox` (`claimUpdatedAt`)")
 }
 
 private fun rebuildMemoFtsTable(db: SupportSQLiteDatabase) {

@@ -144,6 +144,41 @@ interface MemoDao {
     @Query("SELECT * FROM MemoFileOutbox ORDER BY id ASC LIMIT :limit")
     suspend fun getMemoFileOutboxBatch(limit: Int): List<MemoFileOutboxEntity>
 
+    @Query(
+        """
+        UPDATE MemoFileOutbox
+        SET claimToken = :claimToken,
+            claimUpdatedAt = :claimedAt,
+            updatedAt = :claimedAt
+        WHERE id = (
+            SELECT id FROM MemoFileOutbox
+            WHERE claimToken IS NULL
+               OR claimUpdatedAt <= :staleBefore
+            ORDER BY id ASC
+            LIMIT 1
+        )
+        """,
+    )
+    suspend fun claimNextMemoFileOutboxRow(
+        claimToken: String,
+        claimedAt: Long,
+        staleBefore: Long,
+    ): Int
+
+    @Query("SELECT * FROM MemoFileOutbox WHERE claimToken = :claimToken LIMIT 1")
+    suspend fun getMemoFileOutboxByClaimToken(claimToken: String): MemoFileOutboxEntity?
+
+    @Transaction
+    suspend fun claimNextMemoFileOutbox(
+        claimToken: String,
+        claimedAt: Long,
+        staleBefore: Long,
+    ): MemoFileOutboxEntity? {
+        val claimed = claimNextMemoFileOutboxRow(claimToken, claimedAt, staleBefore)
+        if (claimed <= 0) return null
+        return getMemoFileOutboxByClaimToken(claimToken)
+    }
+
     @Query("DELETE FROM MemoFileOutbox WHERE id = :id")
     suspend fun deleteMemoFileOutboxById(id: Long)
 
@@ -158,7 +193,9 @@ interface MemoDao {
         UPDATE MemoFileOutbox
         SET retryCount = retryCount + 1,
             updatedAt = :updatedAt,
-            lastError = :lastError
+            lastError = :lastError,
+            claimToken = NULL,
+            claimUpdatedAt = NULL
         WHERE id = :id
         """,
     )

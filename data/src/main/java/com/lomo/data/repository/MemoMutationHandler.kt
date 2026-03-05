@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.first
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -43,6 +44,10 @@ class MemoMutationHandler
         private val resolveMemoUpdateActionUseCase: ResolveMemoUpdateActionUseCase,
         private val memoIdentityPolicy: MemoIdentityPolicy,
     ) {
+        private companion object {
+            const val OUTBOX_CLAIM_STALE_MS = 2 * 60_000L
+        }
+
         data class SaveDbResult(
             val savePlan: MemoSavePlan,
             val outboxId: Long,
@@ -194,7 +199,14 @@ class MemoMutationHandler
 
         suspend fun hasPendingMemoFileOutbox(): Boolean = dao.getMemoFileOutboxCount() > 0
 
-        suspend fun nextMemoFileOutbox(): MemoFileOutboxEntity? = dao.getMemoFileOutboxBatch(limit = 1).firstOrNull()
+        suspend fun nextMemoFileOutbox(): MemoFileOutboxEntity? {
+            val now = System.currentTimeMillis()
+            return dao.claimNextMemoFileOutbox(
+                claimToken = UUID.randomUUID().toString(),
+                claimedAt = now,
+                staleBefore = now - OUTBOX_CLAIM_STALE_MS,
+            )
+        }
 
         suspend fun acknowledgeMemoFileOutbox(id: Long) {
             dao.deleteMemoFileOutboxById(id)

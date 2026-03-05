@@ -4,6 +4,10 @@ import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * Storage backend implementation using direct file system access.
@@ -296,7 +300,11 @@ class DirectStorageBackend(
         withContext(Dispatchers.IO) {
             ensureRootExists()
             val file = File(rootDir, filename)
-            if (append) file.appendText(content) else file.writeText(content)
+            if (append) {
+                file.appendText(content)
+            } else {
+                writeTextAtomically(file, content)
+            }
             file.absolutePath
         }
 
@@ -307,7 +315,44 @@ class DirectStorageBackend(
     ) = withContext(Dispatchers.IO) {
         ensureTrashExists()
         val file = File(trashDir, filename)
-        if (append) file.appendText(content) else file.writeText(content)
+        if (append) {
+            file.appendText(content)
+        } else {
+            writeTextAtomically(file, content)
+        }
+    }
+
+    private fun writeTextAtomically(
+        target: File,
+        content: String,
+    ) {
+        val parent = target.parentFile ?: throw IOException("Missing parent directory for ${target.absolutePath}")
+        if (!parent.exists() && !parent.mkdirs()) {
+            throw IOException("Failed to create parent directory ${parent.absolutePath}")
+        }
+
+        val temp = File(parent, "${target.name}.tmp.${System.nanoTime()}")
+        temp.writeText(content)
+        try {
+            try {
+                Files.move(
+                    temp.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    temp.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            }
+        } finally {
+            if (temp.exists()) {
+                temp.delete()
+            }
+        }
     }
 
     // --- File deletion ---

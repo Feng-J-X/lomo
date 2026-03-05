@@ -7,6 +7,7 @@ import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 
 /**
@@ -82,6 +83,28 @@ class SafStorageBackend(
         return fallbackValue
     }
 
+    private inline fun <T> withSecurityRetryOrThrow(
+        operation: String,
+        block: () -> T,
+    ): T {
+        var lastException: SecurityException? = null
+        repeat(SECURITY_RETRY_ATTEMPTS) { attempt ->
+            try {
+                return block()
+            } catch (e: SecurityException) {
+                lastException = e
+                invalidateDocumentCaches()
+                val hasRetry = attempt + 1 < SECURITY_RETRY_ATTEMPTS
+                if (hasRetry) {
+                    timber.log.Timber.w(e, "%s hit SecurityException; retrying once", operation)
+                } else {
+                    timber.log.Timber.e(e, "%s hit SecurityException; giving up", operation)
+                }
+            }
+        }
+        throw lastException ?: SecurityException("$operation failed with lost SAF permission")
+    }
+
     private fun DocumentFile.isUsableSafDocument(): Boolean =
         try {
             exists() && canRead() && (isFile || isDirectory)
@@ -128,6 +151,41 @@ class SafStorageBackend(
         } catch (e: Exception) {
             null
         }
+
+    private fun writeTextToUri(
+        uri: Uri,
+        mode: String,
+        content: String,
+    ) {
+        val output =
+            context.contentResolver.openOutputStream(uri, mode)
+                ?: throw IOException("openOutputStream returned null for uri=$uri mode=$mode")
+        output.use { stream ->
+            stream.write(content.toByteArray())
+        }
+    }
+
+    private fun overwriteWithRollback(
+        uri: Uri,
+        content: String,
+    ) {
+        val backup = readFileFromUri(uri)
+        try {
+            writeTextToUri(uri, "wt", content)
+        } catch (e: Exception) {
+            if (backup != null) {
+                runCatching { writeTextToUri(uri, "wt", backup) }
+                    .onFailure { rollbackError ->
+                        timber.log.Timber.e(
+                            rollbackError,
+                            "Rollback failed after overwrite error for uri=%s",
+                            uri,
+                        )
+                    }
+            }
+            throw e
+        }
+    }
 
     // --- Context-aware API ---
 
@@ -531,15 +589,15 @@ class SafStorageBackend(
         uri: Uri?,
     ): String? =
         withContext(safIoDispatcher) {
-            withSecurityRetry(operation = "saveFile($filename)", fallbackValue = null) {
+            withSecurityRetryOrThrow(operation = "saveFile($filename)") {
                 if (uri != null) {
-                    // O(1) optimized write
-                    val mode = if (append) "wa" else "wt"
                     try {
-                        context.contentResolver.openOutputStream(uri, mode)?.use {
-                            it.write(content.toByteArray())
+                        if (append) {
+                            writeTextToUri(uri, "wa", content)
+                        } else {
+                            overwriteWithRollback(uri, content)
                         }
-                        return@withSecurityRetry uri.toString()
+                        return@withSecurityRetryOrThrow uri.toString()
                     } catch (e: Exception) {
                         // Fallback to findFile if URI is stale
                         timber.log.Timber.w(e, "Failed to write using cached URI, falling back to findFile")
@@ -551,13 +609,13 @@ class SafStorageBackend(
                 if (file == null) {
                     file = root.createFile("text/markdown", filename)
                 }
-                file?.uri?.let { newUri ->
-                    val mode = if (append) "wa" else "wt"
-                    context.contentResolver.openOutputStream(newUri, mode)?.use {
-                        it.write(content.toByteArray())
-                    }
-                    newUri.toString()
+                val newUri = file?.uri ?: throw IOException("Failed to resolve SAF file for $filename")
+                if (append) {
+                    writeTextToUri(newUri, "wa", content)
+                } else {
+                    overwriteWithRollback(newUri, content)
                 }
+                newUri.toString()
             }
         }
 
@@ -566,19 +624,18 @@ class SafStorageBackend(
         content: String,
         append: Boolean,
     ) = withContext(safIoDispatcher) {
-        withSecurityRetry(operation = "saveTrashFile($filename)", fallbackValue = Unit) {
+        withSecurityRetryOrThrow(operation = "saveTrashFile($filename)") {
             val trash = getOrCreateTrashDir() ?: throw SecurityException("Cannot access SAF trash for saveTrashFile")
             var file = trash.findFile(filename)
             if (file == null) {
                 file = trash.createFile("text/markdown", filename)
             }
-            file?.uri?.let { uri ->
-                val mode = if (append) "wa" else "wt"
-                context.contentResolver.openOutputStream(uri, mode)?.use {
-                    it.write(content.toByteArray())
-                }
+            val uri = file?.uri ?: throw IOException("Failed to resolve SAF trash file for $filename")
+            if (append) {
+                writeTextToUri(uri, "wa", content)
+            } else {
+                overwriteWithRollback(uri, content)
             }
-            Unit
         }
     }
 

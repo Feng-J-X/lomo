@@ -51,6 +51,49 @@ class DatabaseMigrationsTest {
     }
 
     @Test
+    fun `migration 24 to 25 adds outbox claim columns`() {
+        val db = mockk<SupportSQLiteDatabase>(relaxed = true)
+        val outboxColumns =
+            setOf(
+                "id",
+                "operation",
+                "memoId",
+                "memoDate",
+                "memoTimestamp",
+                "memoRawContent",
+                "newContent",
+                "createRawContent",
+                "createdAt",
+                "updatedAt",
+                "retryCount",
+                "lastError",
+            )
+
+        every { db.query(any<String>()) } answers {
+            val sql = args[0] as String
+            when {
+                sql.contains("sqlite_master") -> {
+                    val tableName = Regex("""name='(\w+)'""").find(sql)?.groupValues?.get(1)
+                    mockCursor(tableName == "MemoFileOutbox")
+                }
+
+                sql.contains("PRAGMA table_info(`MemoFileOutbox`)") -> mockColumnsCursor(outboxColumns)
+                else -> mockCursor(false)
+            }
+        }
+
+        MIGRATION_24_25.migrate(db)
+
+        verify {
+            db.execSQL(match {
+                it.contains("CREATE TABLE IF NOT EXISTS `MemoFileOutbox`") &&
+                    it.contains("`claimToken` TEXT") &&
+                    it.contains("`claimUpdatedAt` INTEGER")
+            })
+        }
+    }
+
+    @Test
     fun `consolidation migrations cover every version from 1 to target-1`() {
         val target = MEMO_DATABASE_VERSION
         val coveredVersions =
