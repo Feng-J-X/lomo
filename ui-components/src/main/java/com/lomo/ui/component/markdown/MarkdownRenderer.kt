@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ColorScheme
@@ -72,6 +73,7 @@ fun MarkdownRenderer(
     onImageClick: ((String) -> Unit)? = null,
     onTotalBlocks: ((Int) -> Unit)? = null,
     precomputedNode: ImmutableNode? = null,
+    enableTextSelection: Boolean = false,
 ) {
     val root = precomputedNode ?: remember(content) { MarkdownParser.parse(content) }
 
@@ -95,14 +97,47 @@ fun MarkdownRenderer(
         totalBlocks?.let { latestOnTotalBlocks?.invoke(it) }
     }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        var node = root.node.firstChild
-        var childIndex = 0
-        while (node != null && childIndex < maxVisibleBlocks) {
-            MDBlock(ImmutableNode(node), onTodoClick = onTodoClick, todoOverrides = todoOverrides, onImageClick = onImageClick)
-            node = node.next
-            childIndex++
+    val content: @Composable () -> Unit = {
+        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            var node = root.node.firstChild
+            var childIndex = 0
+            while (node != null && childIndex < maxVisibleBlocks) {
+                val firstImage = node.toImageOnlyParagraphOrNull()
+                if (firstImage != null) {
+                    val galleryImages = mutableListOf<Image>()
+                    var cursor: Node? = node
+                    while (cursor != null) {
+                        val image = cursor.toImageOnlyParagraphOrNull() ?: break
+                        galleryImages.add(image)
+                        cursor = cursor.next
+                    }
+                    if (galleryImages.size > 1) {
+                        MDImageGallery(galleryImages, onImageClick)
+                        node = cursor
+                        childIndex++
+                        continue
+                    }
+                }
+
+                MDBlock(
+                    ImmutableNode(node),
+                    onTodoClick = onTodoClick,
+                    todoOverrides = todoOverrides,
+                    onImageClick = onImageClick,
+                    enableTextSelection = enableTextSelection,
+                )
+                node = node.next
+                childIndex++
+            }
         }
+    }
+
+    if (enableTextSelection) {
+        SelectionContainer {
+            content()
+        }
+    } else {
+        content()
     }
 }
 
@@ -114,15 +149,16 @@ private fun MDBlock(
     onTodoClick: ((Int, Boolean) -> Unit)? = null,
     todoOverrides: Map<Int, Boolean> = emptyMap(),
     onImageClick: ((String) -> Unit)? = null,
+    enableTextSelection: Boolean = false,
 ) {
     when (val n = node.node) {
         is Heading -> MDHeading(ImmutableNode(n), modifier)
-        is Paragraph -> MDParagraph(ImmutableNode(n), modifier, baseStyle, onImageClick)
+        is Paragraph -> MDParagraph(ImmutableNode(n), modifier, baseStyle, onImageClick, enableTextSelection)
         is FencedCodeBlock -> MDCodeBlock(ImmutableNode(n), modifier)
         is IndentedCodeBlock -> MDIndentedCodeBlock(ImmutableNode(n), modifier)
-        is BlockQuote -> MDBlockQuote(ImmutableNode(n), modifier, onTodoClick, todoOverrides)
-        is BulletList -> MDBulletList(ImmutableNode(n), modifier, onTodoClick, todoOverrides)
-        is OrderedList -> MDOrderedList(ImmutableNode(n), modifier, onTodoClick, todoOverrides)
+        is BlockQuote -> MDBlockQuote(ImmutableNode(n), modifier, onTodoClick, todoOverrides, enableTextSelection)
+        is BulletList -> MDBulletList(ImmutableNode(n), modifier, onTodoClick, todoOverrides, enableTextSelection)
+        is OrderedList -> MDOrderedList(ImmutableNode(n), modifier, onTodoClick, todoOverrides, enableTextSelection)
         is ThematicBreak -> HorizontalDivider(modifier = modifier.padding(vertical = 8.dp))
     }
 }
@@ -179,10 +215,8 @@ private fun MDParagraph(
     modifier: Modifier = Modifier,
     baseStyle: TextStyle? = null,
     onImageClick: ((String) -> Unit)? = null,
+    enableTextSelection: Boolean = false,
 ) {
-    // If paragraph contains images, we render them as blocks interspersed with text.
-    // Standard Markdown treats images as inline. We iterate children.
-
     val colorScheme = MaterialTheme.colorScheme
     val items =
         remember(paragraph, colorScheme) {
@@ -190,8 +224,9 @@ private fun MDParagraph(
             val result = mutableListOf<Any>()
             var currentTextBuilder = AnnotatedString.Builder()
             var hasText = false
+            val currentGalleryImages = mutableListOf<Image>()
 
-            fun flush() {
+            fun flushText() {
                 if (hasText) {
                     result.add(currentTextBuilder.toAnnotatedString())
                     currentTextBuilder = AnnotatedString.Builder()
@@ -199,25 +234,46 @@ private fun MDParagraph(
                 }
             }
 
+            fun flushGallery() {
+                if (currentGalleryImages.isEmpty()) return
+                if (currentGalleryImages.size == 1) {
+                    result.add(currentGalleryImages.first())
+                } else {
+                    result.add(ImageGalleryItem(currentGalleryImages.toList()))
+                }
+                currentGalleryImages.clear()
+            }
+
             var nodeInside = p.firstChild
             while (nodeInside != null) {
                 if (nodeInside is Image) {
-                    flush()
                     val dest = nodeInside.destination
                     if (dest != null &&
                         (dest.endsWith(".m4a") || dest.endsWith(".mp3") || dest.endsWith(".aac") || dest.endsWith(".wav"))
                     ) {
+                        flushText()
+                        flushGallery()
                         result.add(VoiceMemoItem(dest))
                     } else {
-                        result.add(nodeInside)
+                        flushText()
+                        currentGalleryImages.add(nodeInside)
                     }
+                } else if (nodeInside is SoftLineBreak || nodeInside is HardLineBreak) {
+                    if (currentGalleryImages.isEmpty()) {
+                        currentTextBuilder.appendNode(nodeInside, colorScheme)
+                        if (currentTextBuilder.length > 0) hasText = true
+                    }
+                } else if (nodeInside is Text && nodeInside.literal?.isBlank() == true && currentGalleryImages.isNotEmpty()) {
+                    // Ignore pure whitespace separators between adjacent image nodes.
                 } else {
+                    flushGallery()
                     currentTextBuilder.appendNode(nodeInside, colorScheme)
                     if (currentTextBuilder.length > 0) hasText = true
                 }
                 nodeInside = nodeInside.next
             }
-            flush()
+            flushGallery()
+            flushText()
             result
         }
 
@@ -232,6 +288,10 @@ private fun MDParagraph(
 
                 is Image -> {
                     MDImage(item, onImageClick)
+                }
+
+                is ImageGalleryItem -> {
+                    MDImageGallery(item.images, onImageClick)
                 }
 
                 is VoiceMemoItem -> {
@@ -255,22 +315,24 @@ private fun MDText(
         val baseStyle = style ?: MaterialTheme.typography.bodyMedium
         val finalStyle = baseStyle.copy(color = style?.color ?: MaterialTheme.colorScheme.onSurface).scriptAwareFor(layoutSample)
         val textAlign = layoutSample.scriptAwareTextAlign()
-
-        if (displayText != null) {
-            Text(
-                text = displayText,
-                style = finalStyle,
-                textAlign = textAlign,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
-            Text(
-                text = text,
-                style = finalStyle,
-                textAlign = textAlign,
-                modifier = Modifier.fillMaxWidth(),
-            )
+        val textContent: @Composable () -> Unit = {
+            if (displayText != null) {
+                Text(
+                    text = displayText,
+                    style = finalStyle,
+                    textAlign = textAlign,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Text(
+                    text = text,
+                    style = finalStyle,
+                    textAlign = textAlign,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
+        textContent()
     }
 }
 
@@ -317,6 +379,7 @@ private fun MDBlockQuote(
     modifier: Modifier = Modifier,
     onTodoClick: ((Int, Boolean) -> Unit)?,
     todoOverrides: Map<Int, Boolean> = emptyMap(),
+    enableTextSelection: Boolean = false,
 ) {
     val quote = blockQuoteNode.node as BlockQuote
     Row(modifier = modifier.padding(start = 4.dp, top = 4.dp, bottom = 4.dp)) {
@@ -337,6 +400,7 @@ private fun MDBlockQuote(
                     ImmutableNode(child),
                     onTodoClick = onTodoClick,
                     todoOverrides = todoOverrides,
+                    enableTextSelection = enableTextSelection,
                 )
                 child = child.next
             }
@@ -350,6 +414,7 @@ private fun MDBulletList(
     modifier: Modifier = Modifier,
     onTodoClick: ((Int, Boolean) -> Unit)?,
     todoOverrides: Map<Int, Boolean> = emptyMap(),
+    enableTextSelection: Boolean = false,
 ) {
     val list = bulletListNode.node as BulletList
     Column(modifier = modifier.fillMaxWidth().padding(start = 8.dp)) {
@@ -361,6 +426,7 @@ private fun MDBulletList(
                     bullet = "•",
                     onTodoClick = onTodoClick,
                     todoOverrides = todoOverrides,
+                    enableTextSelection = enableTextSelection,
                 )
             }
             node = node.next
@@ -374,6 +440,7 @@ private fun MDOrderedList(
     modifier: Modifier = Modifier,
     onTodoClick: ((Int, Boolean) -> Unit)?,
     todoOverrides: Map<Int, Boolean> = emptyMap(),
+    enableTextSelection: Boolean = false,
 ) {
     val list = orderedListNode.node as OrderedList
     Column(modifier = modifier.fillMaxWidth().padding(start = 8.dp)) {
@@ -387,6 +454,7 @@ private fun MDOrderedList(
                     bullet = "$index.",
                     onTodoClick = onTodoClick,
                     todoOverrides = todoOverrides,
+                    enableTextSelection = enableTextSelection,
                 )
                 index++
             }
@@ -402,6 +470,7 @@ private fun MDListItem(
     modifier: Modifier = Modifier,
     onTodoClick: ((Int, Boolean) -> Unit)?,
     todoOverrides: Map<Int, Boolean> = emptyMap(),
+    enableTextSelection: Boolean = false,
 ) {
     val listItem = listItemNode.node as ListItem
     val taskMarker = listItem.firstChild as? TaskListItemMarker
@@ -497,6 +566,7 @@ private fun MDListItem(
                     baseStyle = itemStyle,
                     onTodoClick = onTodoClick,
                     todoOverrides = todoOverrides,
+                    enableTextSelection = enableTextSelection,
                 )
                 node = node.next
             }
@@ -511,6 +581,17 @@ private fun MDImage(
 ) {
     MarkdownImageBlock(
         image = image,
+        onImageClick = onImageClick,
+    )
+}
+
+@Composable
+private fun MDImageGallery(
+    images: List<Image>,
+    onImageClick: ((String) -> Unit)? = null,
+) {
+    MarkdownImagePager(
+        images = images,
         onImageClick = onImageClick,
     )
 }
@@ -593,4 +674,36 @@ private data class VoiceMemoItem(
     val url: String,
 )
 
+private data class ImageGalleryItem(
+    val images: List<Image>,
+)
+
 private fun AnnotatedString.isPlainTextContent(): Boolean = spanStyles.isEmpty() && paragraphStyles.isEmpty()
+
+private fun Node.toImageOnlyParagraphOrNull(): Image? {
+    if (this !is Paragraph) return null
+    var imageNode: Image? = null
+    var child = firstChild
+    while (child != null) {
+        when (child) {
+            is Image -> {
+                if (imageNode != null) return null
+                imageNode = child
+            }
+
+            is SoftLineBreak,
+            is HardLineBreak,
+            -> Unit
+
+            is Text -> {
+                if (!child.literal.isNullOrBlank()) {
+                    return null
+                }
+            }
+
+            else -> return null
+        }
+        child = child.next
+    }
+    return imageNode
+}

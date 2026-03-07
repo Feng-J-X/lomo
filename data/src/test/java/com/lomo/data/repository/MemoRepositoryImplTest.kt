@@ -38,6 +38,8 @@ class MemoRepositoryImplTest {
                 synchronizer = synchronizer,
                 resolveMemoUpdateActionUseCase = ResolveMemoUpdateActionUseCase(),
             )
+        every { dao.getPinnedMemoIdsFlow() } returns flowOf(emptyList())
+        coEvery { dao.getPinnedMemoIds() } returns emptyList()
     }
 
     @Test
@@ -104,5 +106,23 @@ class MemoRepositoryImplTest {
 
             assertEquals("苏*", captured.captured)
             verify(exactly = 1) { dao.searchMemosByFtsFlow(any()) }
+        }
+
+    @Test
+    fun `setMemoPinned true inserts pin row`() =
+        runTest {
+            repository.setMemoPinned("memo-1", pinned = true)
+
+            coVerify(exactly = 1) { dao.upsertMemoPin(any()) }
+            coVerify(exactly = 0) { dao.deleteMemoPin(any()) }
+        }
+
+    @Test
+    fun `setMemoPinned false deletes pin row`() =
+        runTest {
+            repository.setMemoPinned("memo-1", pinned = false)
+
+            coVerify(exactly = 1) { dao.deleteMemoPin("memo-1") }
+            coVerify(exactly = 0) { dao.upsertMemoPin(any()) }
         }
 }

@@ -21,6 +21,7 @@ fun MemoMenuBinder(
         content: String,
         timestamp: Long,
     ) -> Unit,
+    onTogglePin: ((Memo, Boolean) -> Unit)? = null,
     onJump: ((MemoMenuState) -> Unit)? = null,
     onVersionHistory: ((MemoMenuState) -> Unit)? = null,
     showJump: Boolean = false,
@@ -45,7 +46,7 @@ fun MemoMenuBinder(
                 onDeleteMemo(memo)
             }
         },
-        onShare = { state ->
+        onShareImage = { state ->
             val memo = state.memo as? Memo
             scope.launch {
                 shareUtils.shareMemoAsImage(
@@ -60,12 +61,29 @@ fun MemoMenuBinder(
                 )
             }
         },
+        onShareText = { state ->
+            shareUtils.shareMemoText(
+                context = context,
+                content = state.content,
+            )
+        },
         onLanShare = { state ->
             val memo = state.memo as? Memo
             if (memo != null) {
                 onLanShare(memo.content, memo.timestamp)
             }
         },
+        onTogglePin =
+            if (onTogglePin != null) {
+                { state ->
+                    val memo = state.memo as? Memo
+                    if (memo != null) {
+                        onTogglePin(memo, !state.isPinned)
+                    }
+                }
+            } else {
+                null
+            },
         onJump = onJump,
         onHistory = onVersionHistory,
         showJump = showJump,

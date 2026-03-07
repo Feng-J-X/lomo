@@ -30,11 +30,15 @@
 
     <!-- Memo Sheet -->
     <string name="action_copy">Copy</string>
-    <string name="action_share">Share</string>
+    <string name="action_share">Image Share</string>
+    <string name="action_share_text">Text Share</string>
     <string name="action_edit">Edit</string>
     <string name="action_delete">Delete</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_lan_share">Send</string>
+    <string name="action_pin">Pin</string>
+    <string name="action_unpin">Unpin</string>
+    <string name="memo_pinned_badge">Pinned</string>
     <string name="action_jump">Jump</string>
     <string name="info_created">Created</string>
     <string name="info_characters">Characters</string>

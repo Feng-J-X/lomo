@@ -240,12 +240,14 @@ class SettingsStateProvider(
             appConfigCoordinator.hapticFeedbackEnabled,
             appConfigCoordinator.showInputHints,
             appConfigCoordinator.doubleTapEditEnabled,
+            appConfigCoordinator.freeTextCopyEnabled,
             appConfigCoordinator.appLockEnabled,
-        ) { hapticEnabled, showInputHints, doubleTapEditEnabled, appLockEnabled ->
+        ) { hapticEnabled, showInputHints, doubleTapEditEnabled, freeTextCopyEnabled, appLockEnabled ->
             InteractionSectionState(
                 hapticEnabled = hapticEnabled,
                 showInputHints = showInputHints,
                 doubleTapEditEnabled = doubleTapEditEnabled,
+                freeTextCopyEnabled = freeTextCopyEnabled,
                 appLockEnabled = appLockEnabled,
             )
         }.stateIn(
@@ -256,6 +258,7 @@ class SettingsStateProvider(
                     hapticEnabled = appConfigCoordinator.hapticFeedbackEnabled.value,
                     showInputHints = appConfigCoordinator.showInputHints.value,
                     doubleTapEditEnabled = appConfigCoordinator.doubleTapEditEnabled.value,
+                    freeTextCopyEnabled = appConfigCoordinator.freeTextCopyEnabled.value,
                     appLockEnabled = appConfigCoordinator.appLockEnabled.value,
                 ),
         )

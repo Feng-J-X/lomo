@@ -68,6 +68,7 @@ fun TrashScreen(
     val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
     val dateFormat = appPreferences.dateFormat
     val timeFormat = appPreferences.timeFormat
+    val freeTextCopyEnabled = appPreferences.freeTextCopyEnabled
 
     var selectedMemo by remember { mutableStateOf<Memo?>(null) }
     var showClearTrashDialog by rememberSaveable { mutableStateOf(false) }
@@ -198,7 +199,9 @@ fun TrashScreen(
                             timestamp = memo.timestamp,
                             dateFormat = dateFormat,
                             timeFormat = timeFormat,
+                            isPinned = memo.isPinned,
                             tags = uiModel.tags,
+                            allowFreeTextCopy = freeTextCopyEnabled,
                             onMenuClick = {
                                 haptic.medium()
                                 selectedMemo = memo
@@ -288,7 +291,8 @@ private fun TrashActionSheet(
         MemoActionSheet(
             state = state,
             onCopy = {},
-            onShare = {},
+            onShareImage = {},
+            onShareText = {},
             onLanShare = {},
             onEdit = {},
             onDelete = onDeletePermanently,

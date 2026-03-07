@@ -43,6 +43,10 @@ interface PreferencesRepository {
 
     suspend fun setDoubleTapEditEnabled(enabled: Boolean)
 
+    fun isFreeTextCopyEnabled(): Flow<Boolean>
+
+    suspend fun setFreeTextCopyEnabled(enabled: Boolean)
+
     fun isAppLockEnabled(): Flow<Boolean>
 
     suspend fun setAppLockEnabled(enabled: Boolean)

@@ -112,6 +112,13 @@ val MIGRATION_24_25: Migration =
         }
     }
 
+val MIGRATION_25_26: Migration =
+    object : Migration(25, 26) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            createMemoPinTable(db)
+        }
+    }
+
 /**
  * Consolidation migrations that bring ANY schema version directly to the
  * current [MEMO_DATABASE_VERSION] in a single step.
@@ -146,6 +153,7 @@ val ALL_DATABASE_MIGRATIONS: Array<Migration> =
             MIGRATION_22_23,
             MIGRATION_23_24,
             MIGRATION_24_25,
+            MIGRATION_25_26,
         )
 
 /**
@@ -158,6 +166,7 @@ val ALL_DATABASE_MIGRATIONS: Array<Migration> =
  * Phase B: Apply v22→v23 changes (drop content index).
  * Phase C: Apply v23→v24 changes (add updatedAt column).
  * Phase D: Apply v24→v25 changes (outbox claim columns).
+ * Phase E: Apply v25→v26 changes (memo pin table).
  *
  * When adding a new schema version, append a new Phase here.
  */
@@ -202,6 +211,9 @@ private fun consolidateToCurrentSchema(db: SupportSQLiteDatabase) {
 
     // ── Phase D: v24 → v25 (outbox claim columns) ───────────────────
     normalizeMemoFileOutboxTable(db)
+
+    // ── Phase E: v25 → v26 (memo pin table) ─────────────────────────
+    createMemoPinTable(db)
 }
 
 private fun migrateLegacyMemosTable(db: SupportSQLiteDatabase) {
@@ -540,6 +552,19 @@ private fun createMemoFileOutboxTable(db: SupportSQLiteDatabase) {
     db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_createdAt` ON `MemoFileOutbox` (`createdAt`)")
     db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_claimToken` ON `MemoFileOutbox` (`claimToken`)")
     db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoFileOutbox_claimUpdatedAt` ON `MemoFileOutbox` (`claimUpdatedAt`)")
+}
+
+private fun createMemoPinTable(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS `MemoPin` (
+            `memoId` TEXT NOT NULL,
+            `pinnedAt` INTEGER NOT NULL,
+            PRIMARY KEY(`memoId`)
+        )
+        """.trimIndent(),
+    )
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoPin_pinnedAt` ON `MemoPin` (`pinnedAt`)")
 }
 
 private fun rebuildMemoFtsTable(db: SupportSQLiteDatabase) {

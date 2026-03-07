@@ -112,6 +112,7 @@ fun MainScreen(
     val timeFormat = appPreferences.timeFormat
     val showInputHints = appPreferences.showInputHints
     val doubleTapEditEnabled = appPreferences.doubleTapEditEnabled
+    val freeTextCopyEnabled = appPreferences.freeTextCopyEnabled
     val shareCardStyle = appPreferences.shareCardStyle.value
     val shareCardShowTime = appPreferences.shareCardShowTime
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
@@ -261,6 +262,7 @@ fun MainScreen(
                 viewModel.loadVersionHistory(memo)
             }
         },
+        onTogglePin = viewModel::setMemoPinned,
         showVersionHistory = gitSyncEnabled,
     ) { showMenu, openEditor ->
         var isMemoFilterSheetVisible by rememberSaveable { mutableStateOf(false) }
@@ -331,6 +333,7 @@ fun MainScreen(
                 timeFormat = timeFormat,
                 onMemoDoubleClick = openEditor,
                 doubleTapEditEnabled = doubleTapEditEnabled,
+                freeTextCopyEnabled = freeTextCopyEnabled,
                 onShowMemoMenu = showMenu,
                 onMemoSortOptionSelected = viewModel::updateMemoSortOption,
                 onMemoStartDateSelected = viewModel::updateMemoStartDate,
@@ -409,6 +412,7 @@ private fun MainScreenRenderHost(
     timeFormat: String,
     onMemoDoubleClick: (com.lomo.domain.model.Memo) -> Unit,
     doubleTapEditEnabled: Boolean,
+    freeTextCopyEnabled: Boolean,
     onShowMemoMenu: (com.lomo.ui.component.menu.MemoMenuState) -> Unit,
     onMemoSortOptionSelected: (MemoSortOption) -> Unit,
     onMemoStartDateSelected: (LocalDate?) -> Unit,
@@ -545,6 +549,7 @@ private fun MainScreenRenderHost(
                                             timeFormat = timeFormat,
                                             onMemoDoubleClick = onMemoDoubleClick,
                                             doubleTapEditEnabled = doubleTapEditEnabled,
+                                            freeTextCopyEnabled = freeTextCopyEnabled,
                                             onTagClick = actions.onSidebarTagClick,
                                             onImageClick = actions.onNavigateToImage,
                                             onShowMemoMenu = onShowMemoMenu,

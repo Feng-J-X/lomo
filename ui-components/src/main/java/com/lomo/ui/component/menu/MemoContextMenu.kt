@@ -45,17 +45,20 @@ data class MemoMenuState(
     val wordCount: Int = 0,
     val createdTime: String = "",
     val content: String = "",
+    val isPinned: Boolean = false,
     val reference: MemoMenuReference = MemoMenuReference.None,
 ) {
     constructor(
         wordCount: Int = 0,
         createdTime: String = "",
         content: String = "",
+        isPinned: Boolean = false,
         memo: Any?,
     ) : this(
         wordCount = wordCount,
         createdTime = createdTime,
         content = content,
+        isPinned = isPinned,
         reference =
             if (memo != null) {
                 MemoMenuReference.Payload(memo)
@@ -84,11 +87,13 @@ data class MemoMenuState(
             wordCount: Int = 0,
             createdTime: String = "",
             content: String = "",
+            isPinned: Boolean = false,
         ): MemoMenuState =
             MemoMenuState(
                 wordCount = wordCount,
                 createdTime = createdTime,
                 content = content,
+                isPinned = isPinned,
                 reference = MemoMenuReference.Id(memoId),
             )
 
@@ -97,12 +102,14 @@ data class MemoMenuState(
             wordCount: Int = 0,
             createdTime: String = "",
             content: String = "",
+            isPinned: Boolean = false,
             memoId: MemoMenuItemId? = null,
         ): MemoMenuState =
             MemoMenuState(
                 wordCount = wordCount,
                 createdTime = createdTime,
                 content = content,
+                isPinned = isPinned,
                 reference = MemoMenuReference.Payload(payload, memoId),
             )
     }

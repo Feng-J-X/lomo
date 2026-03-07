@@ -52,6 +52,7 @@ fun TagFilterScreen(
     val shareCardStyle = appPreferences.shareCardStyle.value
     val shareCardShowTime = appPreferences.shareCardShowTime
     val doubleTapEditEnabled = appPreferences.doubleTapEditEnabled
+    val freeTextCopyEnabled = appPreferences.freeTextCopyEnabled
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDir.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
@@ -131,6 +132,7 @@ fun TagFilterScreen(
                     dateFormat = dateFormat,
                     timeFormat = timeFormat,
                     doubleTapEditEnabled = doubleTapEditEnabled,
+                    freeTextCopyEnabled = freeTextCopyEnabled,
                     onMemoEdit = openEditor,
                     onShowMenu = showMenu,
                     onImageClick = onNavigateToImage,

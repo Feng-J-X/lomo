@@ -13,6 +13,7 @@ fun MemoCardEntry(
     dateFormat: String,
     timeFormat: String,
     doubleTapEditEnabled: Boolean,
+    freeTextCopyEnabled: Boolean,
     onMemoEdit: (Memo) -> Unit,
     onShowMenu: (MemoMenuState) -> Unit,
     modifier: Modifier = Modifier,
@@ -30,8 +31,10 @@ fun MemoCardEntry(
         timestamp = memo.timestamp,
         dateFormat = dateFormat,
         timeFormat = timeFormat,
+        isPinned = memo.isPinned,
         tags = uiModel.tags,
         modifier = modifier,
+        allowFreeTextCopy = freeTextCopyEnabled,
         onClick = { onMemoClick?.invoke(memo) },
         onDoubleClick =
             if (doubleTapEditEnabled) {

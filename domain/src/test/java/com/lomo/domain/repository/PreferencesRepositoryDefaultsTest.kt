@@ -64,6 +64,10 @@ class PreferencesRepositoryDefaultsTest {
 
         override suspend fun setDoubleTapEditEnabled(enabled: Boolean) = Unit
 
+        override fun isFreeTextCopyEnabled(): Flow<Boolean> = flowOf(false)
+
+        override suspend fun setFreeTextCopyEnabled(enabled: Boolean) = Unit
+
         override fun isAppLockEnabled(): Flow<Boolean> = flowOf(false)
 
         override suspend fun setAppLockEnabled(enabled: Boolean) = Unit

@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -64,6 +66,8 @@ fun MemoCard(
     modifier: Modifier = Modifier,
     dateFormat: String = "yyyy-MM-dd",
     timeFormat: String = "HH:mm",
+    isPinned: Boolean = false,
+    allowFreeTextCopy: Boolean = false,
     onClick: () -> Unit = {},
     onDoubleClick: (() -> Unit)? = null,
     onMenuClick: (() -> Unit)? = null,
@@ -104,8 +108,10 @@ fun MemoCard(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
             ),
     ) {
-        Column(
-            modifier =
+        val cardInteractionModifier =
+            if (allowFreeTextCopy) {
+                Modifier.clip(AppShapes.Medium)
+            } else {
                 Modifier
                     .clip(AppShapes.Medium)
                     .combinedClickable(
@@ -127,7 +133,12 @@ fun MemoCard(
                                     menuClick()
                                 }
                             },
-                    ).padding(16.dp),
+                    )
+            }
+
+        Column(
+            modifier =
+                cardInteractionModifier.padding(16.dp),
         ) {
             // Increased padding
             // Header
@@ -141,32 +152,66 @@ fun MemoCard(
                         .ofEpochMilli(timestamp)
                         .atZone(ZoneId.systemDefault())
                         .format(dateTimeFormatter)
-                Text(
-                    text = timeStr,
-                    style = MaterialTheme.typography.labelMedium, // Slightly larger/clearer
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, // Softer than outline, readable
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = timeStr,
+                        style = MaterialTheme.typography.labelMedium, // Slightly larger/clearer
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, // Softer than outline, readable
+                    )
+                }
 
-                Box {
-                    if (onMenuClick != null) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (isPinned) {
                         Surface(
-                            shape = CircleShape,
-                            color = Color.Transparent,
-                            onClick = {
-                                haptic.medium()
-                                onMenuClick()
-                            },
-                            modifier = Modifier.size(20.dp),
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = AppShapes.Small,
                         ) {
-                            Icon(
-                                Icons.Rounded.MoreVert,
-                                contentDescription = stringResource(R.string.cd_more_options),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(12.dp),
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.PushPin,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Text(
+                                    text = stringResource(R.string.memo_pinned_badge),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                )
+                            }
                         }
                     }
-                    menuContent?.invoke()
+                    Box {
+                        if (onMenuClick != null) {
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Transparent,
+                                onClick = {
+                                    haptic.medium()
+                                    onMenuClick()
+                                },
+                                modifier = Modifier.size(20.dp),
+                            ) {
+                                Icon(
+                                    Icons.Rounded.MoreVert,
+                                    contentDescription = stringResource(R.string.cd_more_options),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                            }
+                        }
+                        menuContent?.invoke()
+                    }
                 }
             }
 
@@ -193,14 +238,23 @@ fun MemoCard(
                                 .bodyLarge
                                 .copy(lineHeight = 24.sp)
                                 .scriptAwareFor(displaySummary)
-                        Text(
-                            text = displaySummary,
-                            style = summaryStyle,
-                            textAlign = displaySummary.scriptAwareTextAlign(),
-                            maxLines = COLLAPSED_SUMMARY_MAX_LINES,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        )
+                        val summaryContent: @Composable () -> Unit = {
+                            Text(
+                                text = displaySummary,
+                                style = summaryStyle,
+                                textAlign = displaySummary.scriptAwareTextAlign(),
+                                maxLines = COLLAPSED_SUMMARY_MAX_LINES,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            )
+                        }
+                        if (allowFreeTextCopy) {
+                            SelectionContainer {
+                                summaryContent()
+                            }
+                        } else {
+                            summaryContent()
+                        }
                     } else {
                         MarkdownRenderer(
                             content = processedContent,
@@ -215,6 +269,7 @@ fun MemoCard(
                             onTodoClick = onTodoClick,
                             todoOverrides = todoOverrides,
                             onImageClick = onImageClick,
+                            enableTextSelection = allowFreeTextCopy,
                         )
                     }
                 }

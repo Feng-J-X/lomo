@@ -53,6 +53,11 @@ interface MemoRepository {
 
     suspend fun deleteMemo(memo: Memo)
 
+    suspend fun setMemoPinned(
+        memoId: String,
+        pinned: Boolean,
+    )
+
     // Search & Filter
     fun searchMemosList(query: String): Flow<List<Memo>>
 

@@ -58,6 +58,7 @@ fun DailyReviewScreen(
     val shareCardStyle = appPreferences.shareCardStyle.value
     val shareCardShowTime = appPreferences.shareCardShowTime
     val doubleTapEditEnabled = appPreferences.doubleTapEditEnabled
+    val freeTextCopyEnabled = appPreferences.freeTextCopyEnabled
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
@@ -183,6 +184,7 @@ fun DailyReviewScreen(
                                                 dateFormat = dateFormat,
                                                 timeFormat = timeFormat,
                                                 doubleTapEditEnabled = doubleTapEditEnabled,
+                                                freeTextCopyEnabled = freeTextCopyEnabled,
                                                 onMemoEdit = openEditor,
                                                 onShowMenu = showMenu,
                                                 onImageClick = onNavigateToImage,

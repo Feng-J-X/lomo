@@ -22,6 +22,7 @@ data class AppPreferencesState(
     val hapticFeedbackEnabled: Boolean,
     val showInputHints: Boolean,
     val doubleTapEditEnabled: Boolean,
+    val freeTextCopyEnabled: Boolean,
     val shareCardStyle: ShareCardStyle,
     val shareCardShowTime: Boolean,
     val shareCardShowBrand: Boolean,
@@ -35,6 +36,7 @@ data class AppPreferencesState(
                 hapticFeedbackEnabled = PreferenceDefaults.HAPTIC_FEEDBACK_ENABLED,
                 showInputHints = PreferenceDefaults.SHOW_INPUT_HINTS,
                 doubleTapEditEnabled = PreferenceDefaults.DOUBLE_TAP_EDIT_ENABLED,
+                freeTextCopyEnabled = PreferenceDefaults.FREE_TEXT_COPY_ENABLED,
                 shareCardStyle = ShareCardStyle.CLEAN,
                 shareCardShowTime = PreferenceDefaults.SHARE_CARD_SHOW_TIME,
                 shareCardShowBrand = PreferenceDefaults.SHARE_CARD_SHOW_BRAND,
@@ -61,12 +63,14 @@ fun PreferencesRepository.observeAppPreferences(): Flow<AppPreferencesState> =
         },
         combine(
             isDoubleTapEditEnabled(),
+            isFreeTextCopyEnabled(),
             getShareCardStyle(),
             isShareCardShowTimeEnabled(),
             isShareCardShowBrandEnabled(),
-        ) { doubleTapEditEnabled, shareCardStyle, shareCardShowTime, shareCardShowBrand ->
+        ) { doubleTapEditEnabled, freeTextCopyEnabled, shareCardStyle, shareCardShowTime, shareCardShowBrand ->
             SharePreferences(
                 doubleTapEditEnabled = doubleTapEditEnabled,
+                freeTextCopyEnabled = freeTextCopyEnabled,
                 shareCardStyle = shareCardStyle,
                 shareCardShowTime = shareCardShowTime,
                 shareCardShowBrand = shareCardShowBrand,
@@ -80,6 +84,7 @@ fun PreferencesRepository.observeAppPreferences(): Flow<AppPreferencesState> =
             hapticFeedbackEnabled = base.hapticFeedbackEnabled,
             showInputHints = base.showInputHints,
             doubleTapEditEnabled = share.doubleTapEditEnabled,
+            freeTextCopyEnabled = share.freeTextCopyEnabled,
             shareCardStyle = share.shareCardStyle,
             shareCardShowTime = share.shareCardShowTime,
             shareCardShowBrand = share.shareCardShowBrand,
@@ -104,6 +109,7 @@ private data class BasePreferences(
 
 private data class SharePreferences(
     val doubleTapEditEnabled: Boolean,
+    val freeTextCopyEnabled: Boolean,
     val shareCardStyle: ShareCardStyle,
     val shareCardShowTime: Boolean,
     val shareCardShowBrand: Boolean,

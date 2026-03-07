@@ -25,7 +25,7 @@ data class TrashMemoEntity(
     val tags: String,
     val imageUrls: String,
 ) {
-    fun toDomain(): Memo =
+    fun toDomain(isPinned: Boolean = false): Memo =
         Memo(
             id = id,
             timestamp = timestamp,
@@ -36,6 +36,7 @@ data class TrashMemoEntity(
             localDate = MemoLocalDateResolver.resolve(date),
             tags = if (tags.isEmpty()) emptyList() else tags.split(","),
             imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(","),
+            isPinned = isPinned,
             isDeleted = true,
         )
 

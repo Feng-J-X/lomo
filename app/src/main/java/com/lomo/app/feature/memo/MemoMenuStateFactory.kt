@@ -13,5 +13,6 @@ fun memoMenuState(
         wordCount = memo.content.length,
         createdTime = memo.timestamp.formatAsDateTime(dateFormat, timeFormat),
         content = memo.content,
+        isPinned = memo.isPinned,
         memo = memo,
     )

@@ -25,7 +25,7 @@ data class MemoEntity(
     val tags: String, // Comma separated for simplicity or JSON
     val imageUrls: String, // Comma separated
 ) {
-    fun toDomain(): Memo =
+    fun toDomain(isPinned: Boolean = false): Memo =
         Memo(
             id = id,
             timestamp = timestamp,
@@ -36,6 +36,7 @@ data class MemoEntity(
             localDate = MemoLocalDateResolver.resolve(date),
             tags = if (tags.isEmpty()) emptyList() else tags.split(","),
             imageUrls = if (imageUrls.isEmpty()) emptyList() else imageUrls.split(","),
+            isPinned = isPinned,
             isDeleted = false,
         )
 

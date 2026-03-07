@@ -22,10 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.TextSnippet
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.HorizontalDivider
@@ -57,6 +59,7 @@ data class MemoActionSheetAction(
     val label: String,
     val onClick: () -> Unit,
     val isDestructive: Boolean = false,
+    val isHighlighted: Boolean = false,
     val dismissAfterClick: Boolean = true,
     val haptic: MemoActionHaptic = MemoActionHaptic.MEDIUM,
 )
@@ -65,8 +68,10 @@ data class MemoActionSheetAction(
 fun MemoActionSheet(
     state: MemoMenuState,
     onCopy: () -> Unit,
-    onShare: () -> Unit,
+    onShareImage: () -> Unit,
+    onShareText: () -> Unit,
     onLanShare: () -> Unit,
+    onTogglePin: (() -> Unit)? = null,
     onJump: (() -> Unit)? = null,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -84,8 +89,11 @@ fun MemoActionSheet(
     val sheetActions =
         actions ?: rememberDefaultMemoActionSheetActions(
             onCopy = onCopy,
-            onShare = onShare,
+            onShareImage = onShareImage,
+            onShareText = onShareText,
             onLanShare = onLanShare,
+            onTogglePin = onTogglePin,
+            isPinned = state.isPinned,
             onJump = onJump,
             onHistory = onHistory,
             showHistory = showHistory,
@@ -120,11 +128,12 @@ fun MemoActionSheet(
                     icon = action.icon,
                     label = action.label,
                     isDestructive = action.isDestructive,
+                    isHighlighted = action.isHighlighted,
                     modifier =
                         if (equalWidthActions) {
                             Modifier.weight(1f)
                         } else {
-                            Modifier
+                            Modifier.width(92.dp)
                         },
                     onClick = {
                         when (action.haptic) {
@@ -183,8 +192,11 @@ fun MemoActionSheet(
 @Composable
 private fun rememberDefaultMemoActionSheetActions(
     onCopy: () -> Unit,
-    onShare: () -> Unit,
+    onShareImage: () -> Unit,
+    onShareText: () -> Unit,
     onLanShare: () -> Unit,
+    onTogglePin: (() -> Unit)?,
+    isPinned: Boolean,
     onJump: (() -> Unit)?,
     onHistory: (() -> Unit)?,
     showHistory: Boolean,
@@ -193,29 +205,38 @@ private fun rememberDefaultMemoActionSheetActions(
     onDelete: () -> Unit,
 ): List<MemoActionSheetAction> {
     val onCopyState = rememberUpdatedState(onCopy)
-    val onShareState = rememberUpdatedState(onShare)
+    val onShareImageState = rememberUpdatedState(onShareImage)
+    val onShareTextState = rememberUpdatedState(onShareText)
     val onLanShareState = rememberUpdatedState(onLanShare)
+    val onTogglePinState = rememberUpdatedState(onTogglePin)
     val onJumpState = rememberUpdatedState(onJump)
     val onHistoryState = rememberUpdatedState(onHistory)
     val onEditState = rememberUpdatedState(onEdit)
     val onDeleteState = rememberUpdatedState(onDelete)
 
     val copyLabel = stringResource(R.string.action_copy)
-    val shareLabel = stringResource(R.string.action_share)
+    val shareImageLabel = stringResource(R.string.action_share)
+    val shareTextLabel = stringResource(R.string.action_share_text)
     val lanShareLabel = stringResource(R.string.action_lan_share)
+    val pinLabel = stringResource(if (isPinned) R.string.action_unpin else R.string.action_pin)
     val jumpLabel = stringResource(R.string.action_jump)
     val historyLabel = stringResource(R.string.action_history)
     val editLabel = stringResource(R.string.action_edit)
     val deleteLabel = stringResource(R.string.action_delete)
     val hasJumpAction = showJump && onJump != null
     val hasHistoryAction = showHistory && onHistory != null
+    val hasPinAction = onTogglePin != null
 
     return remember(
+        isPinned,
         hasJumpAction,
         hasHistoryAction,
+        hasPinAction,
         copyLabel,
-        shareLabel,
+        shareImageLabel,
+        shareTextLabel,
         lanShareLabel,
+        pinLabel,
         jumpLabel,
         historyLabel,
         editLabel,
@@ -234,8 +255,17 @@ private fun rememberDefaultMemoActionSheetActions(
             add(
                 MemoActionSheetAction(
                     icon = Icons.Outlined.Share,
-                    label = shareLabel,
-                    onClick = { onShareState.value() },
+                    label = shareImageLabel,
+                    onClick = { onShareImageState.value() },
+                    dismissAfterClick = true,
+                    haptic = MemoActionHaptic.MEDIUM,
+                ),
+            )
+            add(
+                MemoActionSheetAction(
+                    icon = Icons.AutoMirrored.Outlined.TextSnippet,
+                    label = shareTextLabel,
+                    onClick = { onShareTextState.value() },
                     dismissAfterClick = true,
                     haptic = MemoActionHaptic.MEDIUM,
                 ),
@@ -249,6 +279,18 @@ private fun rememberDefaultMemoActionSheetActions(
                     haptic = MemoActionHaptic.MEDIUM,
                 ),
             )
+            if (hasPinAction) {
+                add(
+                    MemoActionSheetAction(
+                        icon = Icons.Outlined.PushPin,
+                        label = pinLabel,
+                        onClick = { onTogglePinState.value?.invoke() },
+                        isHighlighted = isPinned,
+                        dismissAfterClick = true,
+                        haptic = MemoActionHaptic.MEDIUM,
+                    ),
+                )
+            }
             if (hasJumpAction) {
                 add(
                     MemoActionSheetAction(
@@ -374,16 +416,21 @@ private fun ActionChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     isDestructive: Boolean = false,
+    isHighlighted: Boolean = false,
 ) {
     val containerColor =
         if (isDestructive) {
             MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+        } else if (isHighlighted) {
+            MaterialTheme.colorScheme.primaryContainer
         } else {
             MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
         }
     val contentColor =
         if (isDestructive) {
             MaterialTheme.colorScheme.onErrorContainer
+        } else if (isHighlighted) {
+            MaterialTheme.colorScheme.onPrimaryContainer
         } else {
             MaterialTheme.colorScheme.onSecondaryContainer
         }

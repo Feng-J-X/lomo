@@ -22,6 +22,7 @@ class AppPreferencesStateTest {
             every { preferencesRepository.isHapticFeedbackEnabled() } returns flowOf(false)
             every { preferencesRepository.isShowInputHintsEnabled() } returns flowOf(true)
             every { preferencesRepository.isDoubleTapEditEnabled() } returns flowOf(false)
+            every { preferencesRepository.isFreeTextCopyEnabled() } returns flowOf(true)
             every { preferencesRepository.getShareCardStyle() } returns flowOf(ShareCardStyle.CLEAN)
             every { preferencesRepository.isShareCardShowTimeEnabled() } returns flowOf(true)
             every { preferencesRepository.isShareCardShowBrandEnabled() } returns flowOf(false)
@@ -36,6 +37,7 @@ class AppPreferencesStateTest {
                     hapticFeedbackEnabled = false,
                     showInputHints = true,
                     doubleTapEditEnabled = false,
+                    freeTextCopyEnabled = true,
                     shareCardStyle = ShareCardStyle.CLEAN,
                     shareCardShowTime = true,
                     shareCardShowBrand = false,

@@ -16,11 +16,13 @@ class ApplyMainMemoFilterUseCase {
         val normalizedEndDate = maxOfOrNull(filter.startDate, filter.endDate)
         val comparator =
             if (filter.sortAscending) {
-                compareBy<Memo> { memo -> sortTimestamp(memo, filter.sortOption) }
+                compareByDescending<Memo> { memo -> memo.isPinned }
+                    .thenBy { memo -> sortTimestamp(memo, filter.sortOption) }
                     .thenBy { memo -> memo.timestamp }
                     .thenBy { memo -> memo.id }
             } else {
-                compareByDescending<Memo> { memo -> sortTimestamp(memo, filter.sortOption) }
+                compareByDescending<Memo> { memo -> memo.isPinned }
+                    .thenByDescending { memo -> sortTimestamp(memo, filter.sortOption) }
                     .thenByDescending { memo -> memo.timestamp }
                     .thenByDescending { memo -> memo.id }
             }

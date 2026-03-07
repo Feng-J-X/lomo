@@ -29,6 +29,8 @@
     <string name="settings_show_input_hints_subtitle">Display usage tips in the input box</string>
     <string name="settings_double_tap_edit">Double-tap to edit memo</string>
     <string name="settings_double_tap_edit_subtitle">Double-tap memo cards to enter edit mode quickly</string>
+    <string name="settings_free_text_copy">Free text copy</string>
+    <string name="settings_free_text_copy_subtitle">Allow selecting and copying text directly from memo cards</string>
     <string name="settings_check_updates">Check updates on startup</string>
     <string name="settings_check_updates_subtitle">Automatically check for updates when app starts</string>
     <string name="settings_lan_share_pairing_code">LAN Share Pairing Code</string>

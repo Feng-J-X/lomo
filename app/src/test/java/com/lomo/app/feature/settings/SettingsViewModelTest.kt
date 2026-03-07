@@ -65,6 +65,7 @@ class SettingsViewModelTest {
         every { appConfigRepository.isHapticFeedbackEnabled() } returns flowOf(true)
         every { appConfigRepository.isShowInputHintsEnabled() } returns flowOf(true)
         every { appConfigRepository.isDoubleTapEditEnabled() } returns flowOf(true)
+        every { appConfigRepository.isFreeTextCopyEnabled() } returns flowOf(false)
         every { appConfigRepository.isAppLockEnabled() } returns flowOf(false)
         every { appConfigRepository.getStorageFilenameFormat() } returns flowOf("default")
         every { appConfigRepository.getStorageTimestampFormat() } returns flowOf("HHmm")

@@ -97,6 +97,12 @@ class SettingsRepositoryImpl
             dataStore.updateDoubleTapEditEnabled(enabled)
         }
 
+        override fun isFreeTextCopyEnabled(): Flow<Boolean> = dataStore.freeTextCopyEnabled
+
+        override suspend fun setFreeTextCopyEnabled(enabled: Boolean) {
+            dataStore.updateFreeTextCopyEnabled(enabled)
+        }
+
         override fun isAppLockEnabled(): Flow<Boolean> = dataStore.appLockEnabled
 
         override suspend fun setAppLockEnabled(enabled: Boolean) {

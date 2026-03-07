@@ -8,10 +8,11 @@ import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFileOutboxEntity
 import com.lomo.data.local.entity.MemoFtsEntity
+import com.lomo.data.local.entity.MemoPinEntity
 import com.lomo.data.local.entity.MemoTagCrossRefEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 
-const val MEMO_DATABASE_VERSION = 25
+const val MEMO_DATABASE_VERSION = 26
 
 @Database(
     entities =
@@ -22,6 +23,7 @@ const val MEMO_DATABASE_VERSION = 25
             MemoTagCrossRefEntity::class,
             LocalFileStateEntity::class,
             MemoFileOutboxEntity::class,
+            MemoPinEntity::class,
         ],
     version = MEMO_DATABASE_VERSION,
     exportSchema = true,

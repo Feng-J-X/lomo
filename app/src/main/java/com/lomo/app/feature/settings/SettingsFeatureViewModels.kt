@@ -92,6 +92,10 @@ class SettingsInteractionFeatureViewModel(
         scope.launch { appConfigCoordinator.updateDoubleTapEditEnabled(enabled) }
     }
 
+    fun updateFreeTextCopyEnabled(enabled: Boolean) {
+        scope.launch { appConfigCoordinator.updateFreeTextCopyEnabled(enabled) }
+    }
+
     fun updateAppLockEnabled(enabled: Boolean) {
         scope.launch { appConfigCoordinator.updateAppLockEnabled(enabled) }
     }

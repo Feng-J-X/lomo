@@ -67,6 +67,11 @@ class SettingsAppConfigCoordinator(
             .isDoubleTapEditEnabled()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), PreferenceDefaults.DOUBLE_TAP_EDIT_ENABLED)
 
+    val freeTextCopyEnabled: StateFlow<Boolean> =
+        appConfigRepository
+            .isFreeTextCopyEnabled()
+            .stateIn(scope, SharingStarted.WhileSubscribed(5000), PreferenceDefaults.FREE_TEXT_COPY_ENABLED)
+
     val appLockEnabled: StateFlow<Boolean> =
         appConfigRepository
             .isAppLockEnabled()
@@ -176,6 +181,10 @@ class SettingsAppConfigCoordinator(
 
     suspend fun updateDoubleTapEditEnabled(enabled: Boolean) {
         appConfigRepository.setDoubleTapEditEnabled(enabled)
+    }
+
+    suspend fun updateFreeTextCopyEnabled(enabled: Boolean) {
+        appConfigRepository.setFreeTextCopyEnabled(enabled)
     }
 
     suspend fun updateAppLockEnabled(enabled: Boolean) {

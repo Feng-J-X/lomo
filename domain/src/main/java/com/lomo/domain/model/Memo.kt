@@ -12,6 +12,7 @@ data class Memo(
     val localDate: LocalDate? = null,
     val tags: List<String> = emptyList(),
     val imageUrls: List<String> = emptyList(),
+    val isPinned: Boolean = false,
     val isDeleted: Boolean = false,
 ) {
     /**

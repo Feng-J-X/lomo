@@ -58,6 +58,7 @@ internal fun MemoListContent(
     timeFormat: String,
     onMemoDoubleClick: (Memo) -> Unit = {},
     doubleTapEditEnabled: Boolean = true,
+    freeTextCopyEnabled: Boolean = false,
     onTagClick: (String) -> Unit,
     onImageClick: (String) -> Unit,
     onShowMemoMenu: (MemoMenuState) -> Unit,
@@ -162,6 +163,7 @@ internal fun MemoListContent(
                     onTagClick = onTagClick,
                     onMemoEdit = onMemoDoubleClick,
                     doubleTapEditEnabled = doubleTapEditEnabled,
+                    freeTextCopyEnabled = freeTextCopyEnabled,
                     onImageClick = onImageClick,
                     onShowMenu = onShowMemoMenu,
                     modifier =

@@ -55,6 +55,25 @@ class ApplyMainMemoFilterUseCaseTest {
     }
 
     @Test
+    fun `pinned memos are always ordered before non pinned memos`() {
+        val memos =
+            listOf(
+                memo(id = "normal_new", date = "2026_03_01", timestamp = timestampOf(2026, 3, 1, 12, 0)),
+                memo(
+                    id = "pinned_old",
+                    date = "2026_03_01",
+                    timestamp = timestampOf(2026, 3, 1, 8, 0),
+                    isPinned = true,
+                ),
+                memo(id = "normal_old", date = "2026_03_01", timestamp = timestampOf(2026, 3, 1, 7, 0)),
+            )
+
+        val result = useCase(memos, MemoListFilter())
+
+        assertEquals(listOf("pinned_old", "normal_new", "normal_old"), result.map { it.id })
+    }
+
+    @Test
     fun `ascending sorting order is applied when enabled`() {
         val memos =
             listOf(
@@ -125,6 +144,7 @@ class ApplyMainMemoFilterUseCaseTest {
         date: String,
         timestamp: Long,
         updatedAt: Long = timestamp,
+        isPinned: Boolean = false,
     ): Memo =
         Memo(
             id = id,
@@ -133,6 +153,7 @@ class ApplyMainMemoFilterUseCaseTest {
             content = id,
             rawContent = id,
             dateKey = date,
+            isPinned = isPinned,
         )
 
     private fun timestampOf(

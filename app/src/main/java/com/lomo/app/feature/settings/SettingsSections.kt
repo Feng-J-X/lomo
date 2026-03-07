@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Brightness6
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Email
@@ -427,6 +428,7 @@ fun InteractionSettingsSection(
     onToggleHaptic: (Boolean) -> Unit,
     onToggleInputHints: (Boolean) -> Unit,
     onToggleDoubleTapEdit: (Boolean) -> Unit,
+    onToggleFreeTextCopy: (Boolean) -> Unit,
     onToggleAppLock: (Boolean) -> Unit,
 ) {
     SettingsGroup(title = stringResource(R.string.settings_group_interaction)) {
@@ -460,6 +462,14 @@ fun InteractionSettingsSection(
             icon = Icons.Outlined.Info,
             checked = state.doubleTapEditEnabled,
             onCheckedChange = onToggleDoubleTapEdit,
+        )
+        SettingsDivider()
+        SwitchPreferenceItem(
+            title = stringResource(R.string.settings_free_text_copy),
+            subtitle = stringResource(R.string.settings_free_text_copy_subtitle),
+            icon = Icons.Outlined.ContentCopy,
+            checked = state.freeTextCopyEnabled,
+            onCheckedChange = onToggleFreeTextCopy,
         )
     }
 }

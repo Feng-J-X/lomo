@@ -10,12 +10,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -72,6 +76,7 @@ internal object MarkdownImageCache {
 internal fun MarkdownImageBlock(
     image: Image,
     onImageClick: ((String) -> Unit)? = null,
+    sharedElementKey: String = image.destination,
 ) {
     val destination = image.destination
     val context = LocalContext.current
@@ -92,7 +97,7 @@ internal fun MarkdownImageBlock(
         if (sharedTransitionScope != null && animatedVisibilityScope != null) {
             with(sharedTransitionScope) {
                 Modifier.sharedElement(
-                    rememberSharedContentState(key = destination),
+                    rememberSharedContentState(key = sharedElementKey),
                     animatedVisibilityScope = animatedVisibilityScope,
                 )
             }
@@ -154,6 +159,70 @@ internal fun MarkdownImageBlock(
 
             else -> {
                 ImageEmptyPlaceholder()
+            }
+        }
+    }
+}
+
+@Composable
+internal fun MarkdownImagePager(
+    images: List<Image>,
+    onImageClick: ((String) -> Unit)? = null,
+) {
+    if (images.isEmpty()) return
+    if (images.size == 1) {
+        MarkdownImageBlock(
+            image = images.first(),
+            onImageClick = onImageClick,
+        )
+        return
+    }
+
+    val pagerState = rememberPagerState(pageCount = { images.size })
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+    ) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxWidth(),
+        ) { page ->
+            val current = images[page]
+            Box(modifier = Modifier.fillMaxSize()) {
+                MarkdownImageBlock(
+                    image = current,
+                    onImageClick = onImageClick,
+                    sharedElementKey = "${current.destination}#$page",
+                )
+            }
+        }
+
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+        ) {
+            images.forEachIndexed { index, _ ->
+                val isActive = pagerState.currentPage == index
+                Box(
+                    modifier =
+                        Modifier
+                            .padding(horizontal = 3.dp)
+                            .size(if (isActive) 8.dp else 6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(
+                                if (isActive) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)
+                                },
+                            ),
+                )
             }
         }
     }

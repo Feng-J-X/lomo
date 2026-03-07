@@ -1,6 +1,8 @@
 package com.lomo.data.repository
 
 import com.lomo.data.local.dao.MemoDao
+import com.lomo.data.local.entity.MemoEntity
+import com.lomo.data.local.entity.MemoPinEntity
 import com.lomo.data.util.SearchTokenizer
 import com.lomo.domain.model.Memo
 import com.lomo.domain.model.MemoTagCount
@@ -9,6 +11,7 @@ import com.lomo.domain.usecase.MemoUpdateAction
 import com.lomo.domain.usecase.ResolveMemoUpdateActionUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -21,12 +24,17 @@ class MemoRepositoryImpl
         private val resolveMemoUpdateActionUseCase: ResolveMemoUpdateActionUseCase,
     ) : MemoRepository {
         override fun getAllMemosList(): Flow<List<Memo>> =
-            dao
-                .getAllMemosFlow()
-                .map { entities -> entities.map { it.toDomain() } }
-                .flowOn(Dispatchers.Default)
+            combine(
+                dao.getAllMemosFlow(),
+                dao.getPinnedMemoIdsFlow().map { pinnedIds -> pinnedIds.toSet() },
+            ) { entities, pinnedMemoIds ->
+                entities.mapToPinnedDomain(pinnedMemoIds)
+            }.flowOn(Dispatchers.Default)
 
-        override suspend fun getRecentMemos(limit: Int): List<Memo> = dao.getRecentMemos(limit).map { it.toDomain() }
+        override suspend fun getRecentMemos(limit: Int): List<Memo> {
+            val pinnedMemoIds = dao.getPinnedMemoIds().toSet()
+            return dao.getRecentMemos(limit).mapToPinnedDomain(pinnedMemoIds)
+        }
 
         override suspend fun getMemosPage(
             limit: Int,
@@ -35,7 +43,8 @@ class MemoRepositoryImpl
             if (limit <= 0 || offset < 0) {
                 emptyList()
             } else {
-                dao.getMemosPage(limit = limit, offset = offset).map { it.toDomain() }
+                val pinnedMemoIds = dao.getPinnedMemoIds().toSet()
+                dao.getMemosPage(limit = limit, offset = offset).mapToPinnedDomain(pinnedMemoIds)
             }
 
         override suspend fun getMemoCount(): Int = dao.getMemoCountSync()
@@ -67,6 +76,22 @@ class MemoRepositoryImpl
             synchronizer.deleteMemoAsync(memo)
         }
 
+        override suspend fun setMemoPinned(
+            memoId: String,
+            pinned: Boolean,
+        ) {
+            if (pinned) {
+                dao.upsertMemoPin(
+                    MemoPinEntity(
+                        memoId = memoId,
+                        pinnedAt = System.currentTimeMillis(),
+                    ),
+                )
+            } else {
+                dao.deleteMemoPin(memoId)
+            }
+        }
+
         override fun searchMemosList(query: String): Flow<List<Memo>> {
             val trimmed = query.trim()
             val hasCjk = SearchTokenizer.containsCjk(trimmed)
@@ -83,16 +108,21 @@ class MemoRepositoryImpl
                 } else {
                     dao.searchMemosFlow(trimmed)
                 }
-            return source
-                .map { entities -> entities.map { it.toDomain() } }
-                .flowOn(Dispatchers.Default)
+            return combine(
+                source,
+                dao.getPinnedMemoIdsFlow().map { pinnedIds -> pinnedIds.toSet() },
+            ) { entities, pinnedMemoIds ->
+                entities.mapToPinnedDomain(pinnedMemoIds)
+            }.flowOn(Dispatchers.Default)
         }
 
         override fun getMemosByTagList(tag: String): Flow<List<Memo>> =
-            dao
-                .getMemosByTagFlow(tag, "$tag/%")
-                .map { entities -> entities.map { it.toDomain() } }
-                .flowOn(Dispatchers.Default)
+            combine(
+                dao.getMemosByTagFlow(tag, "$tag/%"),
+                dao.getPinnedMemoIdsFlow().map { pinnedIds -> pinnedIds.toSet() },
+            ) { entities, pinnedMemoIds ->
+                entities.mapToPinnedDomain(pinnedMemoIds)
+            }.flowOn(Dispatchers.Default)
 
         override fun getMemoCountFlow(): Flow<Int> = dao.getMemoCount()
 
@@ -133,4 +163,9 @@ class MemoRepositoryImpl
         override suspend fun deletePermanently(memo: Memo) {
             synchronizer.deletePermanently(memo)
         }
+
+        private fun List<MemoEntity>.mapToPinnedDomain(pinnedMemoIds: Set<String>): List<Memo> =
+            map { entity ->
+                entity.toDomain(isPinned = entity.id in pinnedMemoIds)
+            }
     }

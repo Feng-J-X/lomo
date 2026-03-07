@@ -94,6 +94,24 @@ class DatabaseMigrationsTest {
     }
 
     @Test
+    fun `migration 25 to 26 creates memo pin table`() {
+        val db = mockk<SupportSQLiteDatabase>(relaxed = true)
+
+        MIGRATION_25_26.migrate(db)
+
+        verify {
+            db.execSQL(match {
+                it.contains("CREATE TABLE IF NOT EXISTS `MemoPin`") &&
+                    it.contains("`memoId` TEXT NOT NULL") &&
+                    it.contains("`pinnedAt` INTEGER NOT NULL")
+            })
+        }
+        verify(exactly = 1) {
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoPin_pinnedAt` ON `MemoPin` (`pinnedAt`)")
+        }
+    }
+
+    @Test
     fun `consolidation migrations cover every version from 1 to target-1`() {
         val target = MEMO_DATABASE_VERSION
         val coveredVersions =
@@ -171,6 +189,9 @@ class DatabaseMigrationsTest {
         // Phase C: updatedAt added
         verify { db.execSQL("ALTER TABLE `Lomo` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0") }
         verify { db.execSQL("ALTER TABLE `LomoTrash` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0") }
+
+        // Phase E: memo pin table created
+        verify { db.execSQL(match { it.contains("CREATE TABLE IF NOT EXISTS `MemoPin`") }) }
     }
 
     @Test
@@ -266,6 +287,9 @@ class DatabaseMigrationsTest {
         // Phase C: updatedAt added
         verify { db.execSQL("ALTER TABLE `Lomo` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0") }
         verify { db.execSQL("ALTER TABLE `LomoTrash` ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0") }
+
+        // Phase E: memo pin table created
+        verify { db.execSQL(match { it.contains("CREATE TABLE IF NOT EXISTS `MemoPin`") }) }
     }
 
     @Test

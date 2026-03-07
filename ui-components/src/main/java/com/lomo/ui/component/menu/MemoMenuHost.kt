@@ -25,8 +25,10 @@ import kotlinx.coroutines.launch
 fun MemoMenuHost(
     onEdit: (MemoMenuState) -> Unit,
     onDelete: (MemoMenuState) -> Unit,
-    onShare: (MemoMenuState) -> Unit = {},
+    onShareImage: (MemoMenuState) -> Unit = {},
+    onShareText: (MemoMenuState) -> Unit = {},
     onLanShare: (MemoMenuState) -> Unit = {},
+    onTogglePin: ((MemoMenuState) -> Unit)? = null,
     onJump: ((MemoMenuState) -> Unit)? = null,
     onHistory: ((MemoMenuState) -> Unit)? = null,
     showHistory: Boolean = false,
@@ -60,14 +62,28 @@ fun MemoMenuHost(
                 val clip = android.content.ClipData.newPlainText("memo", current.content)
                 clipboard?.setPrimaryClip(clip)
             },
-            onShare = {
+            onShareImage = {
                 activeState = null
-                onShare(current)
+                onShareImage(current)
+            },
+            onShareText = {
+                activeState = null
+                onShareText(current)
             },
             onLanShare = {
                 activeState = null
                 onLanShare(current)
             },
+            onTogglePin =
+                if (onTogglePin != null) {
+                    {
+                        val target = activeState
+                        activeState = null
+                        if (target != null) onTogglePin(target)
+                    }
+                } else {
+                    null
+                },
             onJump =
                 if (onJump != null) {
                     {

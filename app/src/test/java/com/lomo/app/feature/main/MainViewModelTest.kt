@@ -91,6 +91,7 @@ class MainViewModelTest {
         every { appConfigRepository.isHapticFeedbackEnabled() } returns flowOf(true)
         every { appConfigRepository.isShowInputHintsEnabled() } returns flowOf(true)
         every { appConfigRepository.isDoubleTapEditEnabled() } returns flowOf(true)
+        every { appConfigRepository.isFreeTextCopyEnabled() } returns flowOf(false)
         every { appConfigRepository.getShareCardStyle() } returns flowOf(ShareCardStyle.CLEAN)
         every { appConfigRepository.isShareCardShowTimeEnabled() } returns flowOf(true)
         every { appConfigRepository.isShareCardShowBrandEnabled() } returns flowOf(true)

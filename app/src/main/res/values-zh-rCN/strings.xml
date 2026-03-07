@@ -30,6 +30,8 @@
     <string name="settings_show_input_hints_subtitle">在输入框显示使用技巧</string>
     <string name="settings_double_tap_edit">双击编辑备忘录</string>
     <string name="settings_double_tap_edit_subtitle">双击备忘录卡片可快速进入编辑模式</string>
+    <string name="settings_free_text_copy">自由复制文本</string>
+    <string name="settings_free_text_copy_subtitle">允许在备忘录卡片中直接选择并复制文本</string>
     <string name="settings_lan_share_pairing_code">局域网分享配对密码</string>
     <string name="settings_lan_share_pairing_configured">已配置（点击可更新或清除）</string>
     <string name="settings_lan_share_pairing_not_set">未配置（局域网分享需要）</string>

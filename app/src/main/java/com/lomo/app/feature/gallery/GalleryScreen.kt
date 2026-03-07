@@ -54,6 +54,7 @@ fun GalleryScreen(
     val dateFormat = appPreferences.dateFormat
     val timeFormat = appPreferences.timeFormat
     val doubleTapEditEnabled = appPreferences.doubleTapEditEnabled
+    val freeTextCopyEnabled = appPreferences.freeTextCopyEnabled
     val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -132,6 +133,7 @@ fun GalleryScreen(
                     dateFormat = dateFormat,
                     timeFormat = timeFormat,
                     doubleTapEditEnabled = doubleTapEditEnabled,
+                    freeTextCopyEnabled = freeTextCopyEnabled,
                     onMemoEdit = { memo ->
                         viewModel.requestOpenMemo(memo.id)
                         onBackClick()

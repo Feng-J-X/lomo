@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFileOutboxEntity
 import com.lomo.data.local.entity.MemoFtsEntity
+import com.lomo.data.local.entity.MemoPinEntity
 import com.lomo.data.local.entity.MemoTagCrossRefEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 import com.lomo.data.local.entity.toTagCrossRefs
@@ -33,6 +34,12 @@ interface MemoDao {
 
     @Query("SELECT COUNT(*) FROM Lomo")
     suspend fun getMemoCountSync(): Int
+
+    @Query("SELECT memoId FROM MemoPin")
+    fun getPinnedMemoIdsFlow(): Flow<List<String>>
+
+    @Query("SELECT memoId FROM MemoPin")
+    suspend fun getPinnedMemoIds(): List<String>
 
     @Query(
         """
@@ -91,6 +98,12 @@ interface MemoDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemo(memo: MemoEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertMemoPin(pin: MemoPinEntity)
+
+    @Query("DELETE FROM MemoPin WHERE memoId = :memoId")
+    suspend fun deleteMemoPin(memoId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemoFileOutbox(item: MemoFileOutboxEntity): Long

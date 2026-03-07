@@ -375,6 +375,21 @@ class MainViewModel
             }
         }
 
+        fun setMemoPinned(
+            memo: Memo,
+            pinned: Boolean,
+        ) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    repository.setMemoPinned(memo.id, pinned)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _errorMessage.value = e.toUserMessage("Failed to update pin status")
+                }
+            }
+        }
+
         fun updateMemo(
             memo: Memo,
             lineIndex: Int,
