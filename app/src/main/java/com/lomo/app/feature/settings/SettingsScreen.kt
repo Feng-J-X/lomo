@@ -48,6 +48,8 @@ import com.lomo.domain.model.StorageFilenameFormats
 import com.lomo.domain.model.StorageTimestampFormats
 import com.lomo.domain.model.SyncEngineState
 import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.model.WebDavProvider
+import com.lomo.domain.model.WebDavSyncState
 import com.lomo.ui.theme.AppSpacing
 import com.lomo.ui.theme.MotionTokens
 import com.lomo.ui.util.LocalAppHapticFeedback
@@ -67,6 +69,7 @@ fun SettingsScreen(
     val systemFeature = viewModel.systemFeature
     val lanShareFeature = viewModel.lanShareFeature
     val gitFeature = viewModel.gitFeature
+    val webDavFeature = viewModel.webDavFeature
 
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -85,6 +88,7 @@ fun SettingsScreen(
     val filenameFormats = StorageFilenameFormats.supportedPatterns
     val timestampFormats = StorageTimestampFormats.supportedPatterns
     val gitSyncIntervals = listOf("30min", "1h", "6h", "12h", "24h")
+    val webDavProviders = WebDavProvider.entries
 
     val themeModeLabels =
         mapOf(
@@ -112,6 +116,13 @@ fun SettingsScreen(
             "6h" to stringResource(R.string.settings_git_sync_interval_6h),
             "12h" to stringResource(R.string.settings_git_sync_interval_12h),
             "24h" to stringResource(R.string.settings_git_sync_interval_24h),
+        )
+
+    val webDavProviderLabels =
+        mapOf(
+            WebDavProvider.NUTSTORE to stringResource(R.string.settings_webdav_provider_nutstore),
+            WebDavProvider.NEXTCLOUD to stringResource(R.string.settings_webdav_provider_nextcloud),
+            WebDavProvider.CUSTOM to stringResource(R.string.settings_webdav_provider_custom),
         )
 
     val currentLocales = AppCompatDelegate.getApplicationLocales()
@@ -378,6 +389,57 @@ fun SettingsScreen(
                     onOpenResetDialog = { dialogState.showGitResetConfirmDialog = true },
                 )
 
+
+
+                WebDavSyncSettingsSection(
+                    state = uiState.webDav,
+                    providerLabel = webDavProviderLabels[uiState.webDav.provider] ?: uiState.webDav.provider.name,
+                    syncIntervalLabel = gitSyncIntervalLabels[uiState.webDav.autoSyncInterval] ?: uiState.webDav.autoSyncInterval,
+                    syncNowSubtitle =
+                        SettingsErrorPresenter.webDavSyncNowSubtitle(
+                            state = uiState.webDav.syncState,
+                            lastSyncTime = uiState.webDav.lastSyncTime,
+                        ),
+                    connectionSubtitle = connectionTestSubtitle(uiState.webDav.connectionTestState),
+                    onToggleEnabled = webDavFeature::updateWebDavSyncEnabled,
+                    onOpenProviderDialog = { dialogState.showWebDavProviderDialog = true },
+                    onOpenBaseUrlDialog = {
+                        dialogState.webDavBaseUrlInput = uiState.webDav.baseUrl
+                        dialogState.showWebDavBaseUrlDialog = true
+                    },
+                    onOpenEndpointUrlDialog = {
+                        dialogState.webDavEndpointUrlInput = uiState.webDav.endpointUrl
+                        dialogState.showWebDavEndpointUrlDialog = true
+                    },
+                    onOpenUsernameDialog = {
+                        dialogState.webDavUsernameInput = uiState.webDav.username
+                        dialogState.showWebDavUsernameDialog = true
+                    },
+                    onOpenPasswordDialog = {
+                        dialogState.webDavPasswordInput = ""
+                        dialogState.webDavPasswordVisible = false
+                        dialogState.showWebDavPasswordDialog = true
+                    },
+                    onToggleAutoSync = webDavFeature::updateAutoSyncEnabled,
+                    onOpenSyncIntervalDialog = { dialogState.showWebDavSyncIntervalDialog = true },
+                    onToggleSyncOnRefresh = webDavFeature::updateSyncOnRefresh,
+                    onSyncNow = {
+                        if (uiState.webDav.syncState !is WebDavSyncState.Connecting &&
+                            uiState.webDav.syncState !is WebDavSyncState.Listing &&
+                            uiState.webDav.syncState !is WebDavSyncState.Uploading &&
+                            uiState.webDav.syncState !is WebDavSyncState.Downloading &&
+                            uiState.webDav.syncState !is WebDavSyncState.Deleting &&
+                            uiState.webDav.syncState !is WebDavSyncState.Initializing
+                        ) {
+                            webDavFeature.triggerSyncNow()
+                        }
+                    },
+                    onTestConnection = {
+                        webDavFeature.resetConnectionTestState()
+                        webDavFeature.testConnection()
+                    },
+                )
+
                 InteractionSettingsSection(
                     state = uiState.interaction,
                     onToggleHaptic = interactionFeature::updateHapticFeedback,
@@ -406,6 +468,7 @@ fun SettingsScreen(
         shareCardFeature = shareCardFeature,
         lanShareFeature = lanShareFeature,
         gitFeature = gitFeature,
+        webDavFeature = webDavFeature,
         dialogState = dialogState,
         options =
             SettingsDialogOptions(
@@ -416,11 +479,13 @@ fun SettingsScreen(
                 filenameFormats = filenameFormats,
                 timestampFormats = timestampFormats,
                 gitSyncIntervals = gitSyncIntervals,
+                webDavProviders = webDavProviders,
                 languageTag = currentLanguageTag,
                 languageLabels = languageLabels,
                 themeModeLabels = themeModeLabels,
                 shareCardStyleLabels = shareCardStyleLabels,
                 gitSyncIntervalLabels = gitSyncIntervalLabels,
+                webDavProviderLabels = webDavProviderLabels,
             ),
         onApplyLanguageTag = { tag ->
             val locales =

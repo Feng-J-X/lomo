@@ -1,6 +1,9 @@
 package com.lomo.app.feature.settings
 
 import com.lomo.domain.model.GitSyncResult
+import com.lomo.domain.model.WebDavProvider
+import com.lomo.domain.model.WebDavSyncResult
+import com.lomo.domain.model.WebDavSyncState
 import com.lomo.domain.model.ShareCardStyle
 import com.lomo.domain.model.SyncEngineState
 import com.lomo.domain.model.ThemeMode
@@ -8,6 +11,7 @@ import com.lomo.domain.repository.AppConfigRepository
 import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.LanShareService
 import com.lomo.domain.repository.SyncPolicyRepository
+import com.lomo.domain.repository.WebDavSyncRepository
 import com.lomo.domain.usecase.GitRemoteUrlUseCase
 import com.lomo.domain.usecase.GitSyncErrorUseCase
 import com.lomo.domain.usecase.SwitchRootStorageUseCase
@@ -38,6 +42,7 @@ class SettingsViewModelTest {
     private lateinit var shareServiceManager: LanShareService
     private lateinit var gitSyncRepo: GitSyncRepository
     private lateinit var syncPolicyRepository: SyncPolicyRepository
+    private lateinit var webDavSyncRepository: WebDavSyncRepository
     private lateinit var switchRootStorageUseCase: SwitchRootStorageUseCase
     private lateinit var syncAndRebuildUseCase: SyncAndRebuildUseCase
     private lateinit var gitRemoteUrlUseCase: GitRemoteUrlUseCase
@@ -51,6 +56,7 @@ class SettingsViewModelTest {
         shareServiceManager = mockk(relaxed = true)
         gitSyncRepo = mockk(relaxed = true)
         syncPolicyRepository = mockk(relaxed = true)
+        webDavSyncRepository = mockk(relaxed = true)
         switchRootStorageUseCase = mockk(relaxed = true)
         syncAndRebuildUseCase = mockk(relaxed = true)
         gitRemoteUrlUseCase = GitRemoteUrlUseCase()
@@ -87,6 +93,20 @@ class SettingsViewModelTest {
         every { gitSyncRepo.getSyncOnRefreshEnabled() } returns flowOf(false)
         every { gitSyncRepo.observeLastSyncTimeMillis() } returns flowOf(null)
         every { gitSyncRepo.syncState() } returns flowOf(SyncEngineState.Idle)
+
+        every { webDavSyncRepository.isWebDavSyncEnabled() } returns flowOf(false)
+        every { webDavSyncRepository.getProvider() } returns flowOf(WebDavProvider.NUTSTORE)
+        every { webDavSyncRepository.getBaseUrl() } returns flowOf("")
+        every { webDavSyncRepository.getEndpointUrl() } returns flowOf("")
+        every { webDavSyncRepository.getUsername() } returns flowOf("")
+        every { webDavSyncRepository.getAutoSyncEnabled() } returns flowOf(false)
+        every { webDavSyncRepository.getAutoSyncInterval() } returns flowOf("1h")
+        every { webDavSyncRepository.getSyncOnRefreshEnabled() } returns flowOf(false)
+        every { webDavSyncRepository.observeLastSyncTimeMillis() } returns flowOf(null)
+        every { webDavSyncRepository.syncState() } returns flowOf(WebDavSyncState.Idle)
+
+        coEvery { webDavSyncRepository.isPasswordConfigured() } returns false
+        coEvery { webDavSyncRepository.testConnection() } returns WebDavSyncResult.Success("ok")
 
         coEvery { gitSyncRepo.getToken() } returns null
         coEvery { gitSyncRepo.testConnection() } returns GitSyncResult.Success("ok")
@@ -211,6 +231,7 @@ class SettingsViewModelTest {
             appConfigRepository = appConfigRepository,
             shareServiceManager = shareServiceManager,
             gitSyncRepo = gitSyncRepo,
+            webDavSyncRepository = webDavSyncRepository,
             syncPolicyRepository = syncPolicyRepository,
             switchRootStorageUseCase = switchRootStorageUseCase,
             syncAndRebuildUseCase = syncAndRebuildUseCase,

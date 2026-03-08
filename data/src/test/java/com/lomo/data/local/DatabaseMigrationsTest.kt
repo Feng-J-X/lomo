@@ -10,6 +10,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DatabaseMigrationsTest {
+
+    @Test
+    fun `migration 26 to 27 creates webdav metadata table`() {
+        val db = mockk<SupportSQLiteDatabase>(relaxed = true)
+
+        MIGRATION_26_27.migrate(db)
+
+        verify {
+            db.execSQL(match { it.contains("CREATE TABLE IF NOT EXISTS `webdav_sync_metadata`") })
+        }
+    }
     @Test
     fun `migration 22 to 23 drops legacy Lomo content index`() {
         val db = mockk<SupportSQLiteDatabase>(relaxed = true)

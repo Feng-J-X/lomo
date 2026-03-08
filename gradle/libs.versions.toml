@@ -12,6 +12,7 @@ composeBom = "2026.02.00"
 coreKtx = "1.17.0"
 coroutines = "1.10.2"
 datastore = "1.2.0"
+dav4jvm = "2.2.1"
 documentfile = "1.1.0"
 espressoCore = "3.7.0"
 glance = "1.1.1"
@@ -47,6 +48,7 @@ androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = 
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 androidx-core-splashscreen = "androidx.core:core-splashscreen:1.2.0"
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+bitfire-dav4jvm = { module = "com.github.bitfireAT:dav4jvm", version.ref = "dav4jvm" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 androidx-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espressoCore" }
 # Glance (App Widget)

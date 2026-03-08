@@ -51,9 +51,9 @@ class LomoApplication :
             }
 
             try {
-                syncPolicyRepository.applyGitSyncPolicy()
+                syncPolicyRepository.applyRemoteSyncPolicy()
             } catch (e: Exception) {
-                Timber.e(e, "Failed to schedule git sync")
+                Timber.e(e, "Failed to schedule remote sync")
             }
         }
     }

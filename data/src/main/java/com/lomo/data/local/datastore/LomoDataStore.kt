@@ -94,6 +94,16 @@ class LomoDataStore
             val GIT_AUTO_SYNC_INTERVAL = stringPreferencesKey(PreferenceKeys.GIT_AUTO_SYNC_INTERVAL)
             val GIT_LAST_SYNC_TIME = longPreferencesKey(PreferenceKeys.GIT_LAST_SYNC_TIME)
             val GIT_SYNC_ON_REFRESH = booleanPreferencesKey(PreferenceKeys.GIT_SYNC_ON_REFRESH)
+            val SYNC_BACKEND_TYPE = stringPreferencesKey(PreferenceKeys.SYNC_BACKEND_TYPE)
+            val WEBDAV_SYNC_ENABLED = booleanPreferencesKey(PreferenceKeys.WEBDAV_SYNC_ENABLED)
+            val WEBDAV_PROVIDER = stringPreferencesKey(PreferenceKeys.WEBDAV_PROVIDER)
+            val WEBDAV_BASE_URL = stringPreferencesKey(PreferenceKeys.WEBDAV_BASE_URL)
+            val WEBDAV_ENDPOINT_URL = stringPreferencesKey(PreferenceKeys.WEBDAV_ENDPOINT_URL)
+            val WEBDAV_USERNAME = stringPreferencesKey(PreferenceKeys.WEBDAV_USERNAME)
+            val WEBDAV_AUTO_SYNC_ENABLED = booleanPreferencesKey(PreferenceKeys.WEBDAV_AUTO_SYNC_ENABLED)
+            val WEBDAV_AUTO_SYNC_INTERVAL = stringPreferencesKey(PreferenceKeys.WEBDAV_AUTO_SYNC_INTERVAL)
+            val WEBDAV_LAST_SYNC_TIME = longPreferencesKey(PreferenceKeys.WEBDAV_LAST_SYNC_TIME)
+            val WEBDAV_SYNC_ON_REFRESH = booleanPreferencesKey(PreferenceKeys.WEBDAV_SYNC_ON_REFRESH)
         }
 
         // Storage Settings
@@ -511,5 +521,126 @@ class LomoDataStore
 
         suspend fun updateGitSyncOnRefresh(enabled: Boolean) {
             dataStore.edit { prefs -> prefs[Keys.GIT_SYNC_ON_REFRESH] = enabled }
+        }
+
+
+        val syncBackendType: Flow<String> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.SYNC_BACKEND_TYPE]
+                        ?: PreferenceKeys.Defaults.SYNC_BACKEND_TYPE
+                }.catchOnlyIOException("syncBackendType", PreferenceKeys.Defaults.SYNC_BACKEND_TYPE)
+
+        val webDavSyncEnabled: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.WEBDAV_SYNC_ENABLED]
+                        ?: PreferenceKeys.Defaults.WEBDAV_SYNC_ENABLED
+                }.catchOnlyIOException("webDavSyncEnabled", PreferenceKeys.Defaults.WEBDAV_SYNC_ENABLED)
+
+        val webDavProvider: Flow<String> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.WEBDAV_PROVIDER]
+                        ?: PreferenceKeys.Defaults.WEBDAV_PROVIDER
+                }.catchOnlyIOException("webDavProvider", PreferenceKeys.Defaults.WEBDAV_PROVIDER)
+
+        val webDavBaseUrl: Flow<String?> =
+            dataStore.data
+                .map { prefs -> prefs[Keys.WEBDAV_BASE_URL] }
+                .catchOnlyIOException("webDavBaseUrl", null)
+
+        val webDavEndpointUrl: Flow<String?> =
+            dataStore.data
+                .map { prefs -> prefs[Keys.WEBDAV_ENDPOINT_URL] }
+                .catchOnlyIOException("webDavEndpointUrl", null)
+
+        val webDavUsername: Flow<String?> =
+            dataStore.data
+                .map { prefs -> prefs[Keys.WEBDAV_USERNAME] }
+                .catchOnlyIOException("webDavUsername", null)
+
+        val webDavAutoSyncEnabled: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.WEBDAV_AUTO_SYNC_ENABLED]
+                        ?: PreferenceKeys.Defaults.WEBDAV_AUTO_SYNC_ENABLED
+                }.catchOnlyIOException("webDavAutoSyncEnabled", PreferenceKeys.Defaults.WEBDAV_AUTO_SYNC_ENABLED)
+
+        val webDavAutoSyncInterval: Flow<String> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.WEBDAV_AUTO_SYNC_INTERVAL]
+                        ?: PreferenceKeys.Defaults.WEBDAV_AUTO_SYNC_INTERVAL
+                }.catchOnlyIOException("webDavAutoSyncInterval", PreferenceKeys.Defaults.WEBDAV_AUTO_SYNC_INTERVAL)
+
+        val webDavLastSyncTime: Flow<Long> =
+            dataStore.data
+                .map { prefs -> prefs[Keys.WEBDAV_LAST_SYNC_TIME] ?: 0L }
+                .catchOnlyIOException("webDavLastSyncTime", 0L)
+
+        val webDavSyncOnRefresh: Flow<Boolean> =
+            dataStore.data
+                .map { prefs ->
+                    prefs[Keys.WEBDAV_SYNC_ON_REFRESH]
+                        ?: PreferenceKeys.Defaults.WEBDAV_SYNC_ON_REFRESH
+                }.catchOnlyIOException("webDavSyncOnRefresh", PreferenceKeys.Defaults.WEBDAV_SYNC_ON_REFRESH)
+
+        suspend fun updateSyncBackendType(type: String) {
+            dataStore.edit { prefs -> prefs[Keys.SYNC_BACKEND_TYPE] = type }
+        }
+
+        suspend fun updateWebDavSyncEnabled(enabled: Boolean) {
+            dataStore.edit { prefs -> prefs[Keys.WEBDAV_SYNC_ENABLED] = enabled }
+        }
+
+        suspend fun updateWebDavProvider(provider: String) {
+            dataStore.edit { prefs -> prefs[Keys.WEBDAV_PROVIDER] = provider }
+        }
+
+        suspend fun updateWebDavBaseUrl(url: String?) {
+            dataStore.edit { prefs ->
+                if (url.isNullOrBlank()) {
+                    prefs.remove(Keys.WEBDAV_BASE_URL)
+                } else {
+                    prefs[Keys.WEBDAV_BASE_URL] = url
+                }
+            }
+        }
+
+        suspend fun updateWebDavEndpointUrl(url: String?) {
+            dataStore.edit { prefs ->
+                if (url.isNullOrBlank()) {
+                    prefs.remove(Keys.WEBDAV_ENDPOINT_URL)
+                } else {
+                    prefs[Keys.WEBDAV_ENDPOINT_URL] = url
+                }
+            }
+        }
+
+        suspend fun updateWebDavUsername(username: String?) {
+            dataStore.edit { prefs ->
+                if (username.isNullOrBlank()) {
+                    prefs.remove(Keys.WEBDAV_USERNAME)
+                } else {
+                    prefs[Keys.WEBDAV_USERNAME] = username
+                }
+            }
+        }
+
+        suspend fun updateWebDavAutoSyncEnabled(enabled: Boolean) {
+            dataStore.edit { prefs -> prefs[Keys.WEBDAV_AUTO_SYNC_ENABLED] = enabled }
+        }
+
+        suspend fun updateWebDavAutoSyncInterval(interval: String) {
+            dataStore.edit { prefs -> prefs[Keys.WEBDAV_AUTO_SYNC_INTERVAL] = interval }
+        }
+
+        suspend fun updateWebDavLastSyncTime(timestamp: Long) {
+            dataStore.edit { prefs -> prefs[Keys.WEBDAV_LAST_SYNC_TIME] = timestamp }
+        }
+
+        suspend fun updateWebDavSyncOnRefresh(enabled: Boolean) {
+            dataStore.edit { prefs -> prefs[Keys.WEBDAV_SYNC_ON_REFRESH] = enabled }
         }
     }

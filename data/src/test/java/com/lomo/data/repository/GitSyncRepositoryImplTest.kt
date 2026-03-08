@@ -1,6 +1,7 @@
 package com.lomo.data.repository
 
 import com.lomo.data.git.GitCredentialStore
+import com.lomo.data.git.GitMediaSyncBridge
 import com.lomo.data.git.GitSyncEngine
 import com.lomo.data.git.SafGitMirrorBridge
 import com.lomo.data.local.datastore.LomoDataStore
@@ -42,6 +43,9 @@ class GitSyncRepositoryImplTest {
     private lateinit var safGitMirrorBridge: SafGitMirrorBridge
 
     @MockK(relaxed = true)
+    private lateinit var gitMediaSyncBridge: GitMediaSyncBridge
+
+    @MockK(relaxed = true)
     private lateinit var markdownParser: MarkdownParser
 
     private lateinit var repository: GitSyncRepositoryImpl
@@ -57,6 +61,7 @@ class GitSyncRepositoryImplTest {
                 dataStore = dataStore,
                 memoSynchronizer = memoSynchronizer,
                 safGitMirrorBridge = safGitMirrorBridge,
+                gitMediaSyncBridge = gitMediaSyncBridge,
                 markdownParser = markdownParser,
             )
     }

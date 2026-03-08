@@ -119,6 +119,13 @@ val MIGRATION_25_26: Migration =
         }
     }
 
+val MIGRATION_26_27: Migration =
+    object : Migration(26, 27) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            createWebDavSyncMetadataTable(db)
+        }
+    }
+
 /**
  * Consolidation migrations that bring ANY schema version directly to the
  * current [MEMO_DATABASE_VERSION] in a single step.
@@ -154,6 +161,7 @@ val ALL_DATABASE_MIGRATIONS: Array<Migration> =
             MIGRATION_23_24,
             MIGRATION_24_25,
             MIGRATION_25_26,
+            MIGRATION_26_27,
         )
 
 /**
@@ -167,6 +175,7 @@ val ALL_DATABASE_MIGRATIONS: Array<Migration> =
  * Phase C: Apply v23→v24 changes (add updatedAt column).
  * Phase D: Apply v24→v25 changes (outbox claim columns).
  * Phase E: Apply v25→v26 changes (memo pin table).
+ * Phase F: Apply v26→v27 changes (WebDAV sync metadata table).
  *
  * When adding a new schema version, append a new Phase here.
  */
@@ -214,6 +223,9 @@ private fun consolidateToCurrentSchema(db: SupportSQLiteDatabase) {
 
     // ── Phase E: v25 → v26 (memo pin table) ─────────────────────────
     createMemoPinTable(db)
+
+    // ── Phase F: v26 → v27 (WebDAV sync metadata) ────────────────────
+    createWebDavSyncMetadataTable(db)
 }
 
 private fun migrateLegacyMemosTable(db: SupportSQLiteDatabase) {
@@ -565,6 +577,24 @@ private fun createMemoPinTable(db: SupportSQLiteDatabase) {
         """.trimIndent(),
     )
     db.execSQL("CREATE INDEX IF NOT EXISTS `index_MemoPin_pinnedAt` ON `MemoPin` (`pinnedAt`)")
+}
+
+private fun createWebDavSyncMetadataTable(db: SupportSQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS `webdav_sync_metadata` (
+            `relative_path` TEXT NOT NULL,
+            `remote_path` TEXT NOT NULL,
+            `etag` TEXT,
+            `remote_last_modified` INTEGER,
+            `local_last_modified` INTEGER,
+            `last_synced_at` INTEGER NOT NULL,
+            `last_resolved_direction` TEXT NOT NULL,
+            `last_resolved_reason` TEXT NOT NULL,
+            PRIMARY KEY(`relative_path`)
+        )
+        """.trimIndent(),
+    )
 }
 
 private fun rebuildMemoFtsTable(db: SupportSQLiteDatabase) {

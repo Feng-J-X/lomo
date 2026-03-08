@@ -36,6 +36,18 @@ class SettingsDialogState {
     var showGitResetConfirmDialog by mutableStateOf(false)
     var showGitConflictResolutionDialog by mutableStateOf(false)
     var gitConflictMessage by mutableStateOf("")
+
+    var showWebDavProviderDialog by mutableStateOf(false)
+    var showWebDavBaseUrlDialog by mutableStateOf(false)
+    var webDavBaseUrlInput by mutableStateOf("")
+    var showWebDavEndpointUrlDialog by mutableStateOf(false)
+    var webDavEndpointUrlInput by mutableStateOf("")
+    var showWebDavUsernameDialog by mutableStateOf(false)
+    var webDavUsernameInput by mutableStateOf("")
+    var showWebDavPasswordDialog by mutableStateOf(false)
+    var webDavPasswordInput by mutableStateOf("")
+    var webDavPasswordVisible by mutableStateOf(false)
+    var showWebDavSyncIntervalDialog by mutableStateOf(false)
 }
 
 @Composable

@@ -3,6 +3,8 @@ package com.lomo.app.feature.settings
 import com.lomo.domain.model.ShareCardStyle
 import com.lomo.domain.model.SyncEngineState
 import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.model.WebDavProvider
+import com.lomo.domain.model.WebDavSyncState
 
 data class StorageSectionState(
     val rootDirectory: String,
@@ -46,6 +48,21 @@ data class GitSectionState(
     val resetInProgress: Boolean,
 )
 
+data class WebDavSectionState(
+    val enabled: Boolean,
+    val provider: WebDavProvider,
+    val baseUrl: String,
+    val endpointUrl: String,
+    val username: String,
+    val passwordConfigured: Boolean,
+    val autoSyncEnabled: Boolean,
+    val autoSyncInterval: String,
+    val syncOnRefreshEnabled: Boolean,
+    val lastSyncTime: Long,
+    val syncState: WebDavSyncState,
+    val connectionTestState: SettingsWebDavConnectionTestState,
+)
+
 data class InteractionSectionState(
     val hapticEnabled: Boolean,
     val showInputHints: Boolean,
@@ -64,6 +81,7 @@ data class SettingsScreenUiState(
     val lanShare: LanShareSectionState,
     val shareCard: ShareCardSectionState,
     val git: GitSectionState,
+    val webDav: WebDavSectionState,
     val interaction: InteractionSectionState,
     val system: SystemSectionState,
     val operationError: String?,

@@ -2,6 +2,7 @@ package com.lomo.data.repository
 
 import com.lomo.data.git.GitCredentialStore
 import com.lomo.data.git.GitSyncEngine
+import com.lomo.data.git.GitMediaSyncBridge
 import com.lomo.data.git.GitSyncErrorMessages
 import com.lomo.data.git.SafGitMirrorBridge
 import com.lomo.data.local.datastore.LomoDataStore
@@ -36,6 +37,7 @@ class GitSyncRepositoryImpl
         private val dataStore: LomoDataStore,
         private val memoSynchronizer: MemoSynchronizer,
         private val safGitMirrorBridge: SafGitMirrorBridge,
+        private val gitMediaSyncBridge: GitMediaSyncBridge,
         private val markdownParser: MarkdownParser,
     ) : GitSyncRepository {
         companion object {
@@ -243,10 +245,23 @@ class GitSyncRepositoryImpl
                 if (initResult is GitSyncResult.Error) return initResult
             }
 
-            val result =
+            var result =
                 runGitIo {
                     gitSyncEngine.sync(rootDir, remoteUrl)
                 }
+
+            if (result is GitSyncResult.Success) {
+                val mediaSummary = gitMediaSyncBridge.reconcile(rootDir)
+                if (mediaSummary.repoChanged) {
+                    result =
+                        runGitIo {
+                            gitSyncEngine.sync(rootDir, remoteUrl)
+                        }
+                }
+                if (result is GitSyncResult.Success) {
+                    gitMediaSyncBridge.reconcile(rootDir)
+                }
+            }
 
             if (result is GitSyncResult.Success && !safRootUri.isNullOrBlank()) {
                 try {

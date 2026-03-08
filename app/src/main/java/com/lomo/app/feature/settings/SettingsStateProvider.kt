@@ -1,5 +1,7 @@
 package com.lomo.app.feature.settings
 
+import com.lomo.domain.model.WebDavProvider
+import com.lomo.domain.model.WebDavSyncState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -11,6 +13,7 @@ class SettingsStateProvider(
     appConfigCoordinator: SettingsAppConfigCoordinator,
     lanShareCoordinator: SettingsLanShareCoordinator,
     gitCoordinator: SettingsGitCoordinator,
+    webDavCoordinator: SettingsWebDavCoordinator,
     val operationError: StateFlow<String?>,
     scope: CoroutineScope,
 ) {
@@ -30,16 +33,35 @@ class SettingsStateProvider(
         val syncState: com.lomo.domain.model.SyncEngineState,
     )
 
+    private data class WebDavIdentityState(
+        val enabled: Boolean,
+        val provider: WebDavProvider,
+        val baseUrl: String,
+        val endpointUrl: String,
+        val username: String,
+        val passwordConfigured: Boolean,
+    )
+
+    private data class WebDavSyncSettingsState(
+        val autoSyncEnabled: Boolean,
+        val autoSyncInterval: String,
+        val syncOnRefreshEnabled: Boolean,
+        val lastSyncTime: Long,
+        val syncState: WebDavSyncState,
+    )
+
     private data class CoreUiSections(
         val storage: StorageSectionState,
         val display: DisplaySectionState,
         val lanShare: LanShareSectionState,
         val shareCard: ShareCardSectionState,
         val git: GitSectionState,
+        val webDav: WebDavSectionState,
     )
 
     val pairingCodeError: StateFlow<String?> = lanShareCoordinator.pairingCodeError
     val connectionTestState: StateFlow<SettingsGitConnectionTestState> = gitCoordinator.connectionTestState
+    val webDavConnectionTestState: StateFlow<SettingsWebDavConnectionTestState> = webDavCoordinator.connectionTestState
 
     private val storageState: StateFlow<StorageSectionState> =
         combine(
@@ -49,13 +71,7 @@ class SettingsStateProvider(
             appConfigCoordinator.storageFilenameFormat,
             appConfigCoordinator.storageTimestampFormat,
         ) { rootDirectory, imageDirectory, voiceDirectory, filenameFormat, timestampFormat ->
-            StorageSectionState(
-                rootDirectory = rootDirectory,
-                imageDirectory = imageDirectory,
-                voiceDirectory = voiceDirectory,
-                filenameFormat = filenameFormat,
-                timestampFormat = timestampFormat,
-            )
+            StorageSectionState(rootDirectory, imageDirectory, voiceDirectory, filenameFormat, timestampFormat)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -75,20 +91,11 @@ class SettingsStateProvider(
             appConfigCoordinator.timeFormat,
             appConfigCoordinator.themeMode,
         ) { dateFormat, timeFormat, themeMode ->
-            DisplaySectionState(
-                dateFormat = dateFormat,
-                timeFormat = timeFormat,
-                themeMode = themeMode,
-            )
+            DisplaySectionState(dateFormat, timeFormat, themeMode)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue =
-                DisplaySectionState(
-                    dateFormat = appConfigCoordinator.dateFormat.value,
-                    timeFormat = appConfigCoordinator.timeFormat.value,
-                    themeMode = appConfigCoordinator.themeMode.value,
-                ),
+            initialValue = DisplaySectionState(appConfigCoordinator.dateFormat.value, appConfigCoordinator.timeFormat.value, appConfigCoordinator.themeMode.value),
         )
 
     private val lanShareState: StateFlow<LanShareSectionState> =
@@ -98,12 +105,7 @@ class SettingsStateProvider(
             lanShareCoordinator.lanShareDeviceName,
             lanShareCoordinator.pairingCodeError,
         ) { e2eEnabled, pairingConfigured, deviceName, pairingCodeError ->
-            LanShareSectionState(
-                e2eEnabled = e2eEnabled,
-                pairingConfigured = pairingConfigured,
-                deviceName = deviceName,
-                pairingCodeError = pairingCodeError,
-            )
+            LanShareSectionState(e2eEnabled, pairingConfigured, deviceName, pairingCodeError)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -122,20 +124,11 @@ class SettingsStateProvider(
             appConfigCoordinator.shareCardShowTime,
             appConfigCoordinator.shareCardShowBrand,
         ) { style, showTime, showBrand ->
-            ShareCardSectionState(
-                style = style,
-                showTime = showTime,
-                showBrand = showBrand,
-            )
+            ShareCardSectionState(style, showTime, showBrand)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue =
-                ShareCardSectionState(
-                    style = appConfigCoordinator.shareCardStyle.value,
-                    showTime = appConfigCoordinator.shareCardShowTime.value,
-                    showBrand = appConfigCoordinator.shareCardShowBrand.value,
-                ),
+            initialValue = ShareCardSectionState(appConfigCoordinator.shareCardStyle.value, appConfigCoordinator.shareCardShowTime.value, appConfigCoordinator.shareCardShowBrand.value),
         )
 
     private val gitIdentityState: StateFlow<GitIdentityState> =
@@ -146,13 +139,7 @@ class SettingsStateProvider(
             gitCoordinator.gitAuthorName,
             gitCoordinator.gitAuthorEmail,
         ) { enabled, remoteUrl, patConfigured, authorName, authorEmail ->
-            GitIdentityState(
-                enabled = enabled,
-                remoteUrl = remoteUrl,
-                patConfigured = patConfigured,
-                authorName = authorName,
-                authorEmail = authorEmail,
-            )
+            GitIdentityState(enabled, remoteUrl, patConfigured, authorName, authorEmail)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -174,13 +161,7 @@ class SettingsStateProvider(
             gitCoordinator.gitLastSyncTime,
             gitCoordinator.gitSyncState,
         ) { autoSyncEnabled, autoSyncInterval, syncOnRefreshEnabled, lastSyncTime, syncState ->
-            GitSyncSettingsState(
-                autoSyncEnabled = autoSyncEnabled,
-                autoSyncInterval = autoSyncInterval,
-                syncOnRefreshEnabled = syncOnRefreshEnabled,
-                lastSyncTime = lastSyncTime,
-                syncState = syncState,
-            )
+            GitSyncSettingsState(autoSyncEnabled, autoSyncInterval, syncOnRefreshEnabled, lastSyncTime, syncState)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -235,6 +216,110 @@ class SettingsStateProvider(
                 ),
         )
 
+    private val webDavIdentityInputs: StateFlow<Triple<Boolean, WebDavProvider, String>> =
+        combine(
+            webDavCoordinator.webDavSyncEnabled,
+            webDavCoordinator.webDavProvider,
+            webDavCoordinator.webDavBaseUrl,
+        ) { enabled, provider, baseUrl ->
+            Triple(enabled, provider, baseUrl)
+        }.stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = Triple(webDavCoordinator.webDavSyncEnabled.value, webDavCoordinator.webDavProvider.value, webDavCoordinator.webDavBaseUrl.value),
+        )
+
+    private val webDavIdentityState: StateFlow<WebDavIdentityState> =
+        combine(
+            webDavIdentityInputs,
+            webDavCoordinator.webDavEndpointUrl,
+            webDavCoordinator.webDavUsername,
+            webDavCoordinator.passwordConfigured,
+        ) { baseInputs, endpointUrl, username, passwordConfigured ->
+            WebDavIdentityState(
+                enabled = baseInputs.first,
+                provider = baseInputs.second,
+                baseUrl = baseInputs.third,
+                endpointUrl = endpointUrl,
+                username = username,
+                passwordConfigured = passwordConfigured,
+            )
+        }.stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue =
+                WebDavIdentityState(
+                    enabled = webDavCoordinator.webDavSyncEnabled.value,
+                    provider = webDavCoordinator.webDavProvider.value,
+                    baseUrl = webDavCoordinator.webDavBaseUrl.value,
+                    endpointUrl = webDavCoordinator.webDavEndpointUrl.value,
+                    username = webDavCoordinator.webDavUsername.value,
+                    passwordConfigured = webDavCoordinator.passwordConfigured.value,
+                ),
+        )
+
+    private val webDavSyncSettingsState: StateFlow<WebDavSyncSettingsState> =
+        combine(
+            webDavCoordinator.webDavAutoSyncEnabled,
+            webDavCoordinator.webDavAutoSyncInterval,
+            webDavCoordinator.webDavSyncOnRefreshEnabled,
+            webDavCoordinator.webDavLastSyncTime,
+            webDavCoordinator.webDavSyncState,
+        ) { autoSyncEnabled, autoSyncInterval, syncOnRefreshEnabled, lastSyncTime, syncState ->
+            WebDavSyncSettingsState(autoSyncEnabled, autoSyncInterval, syncOnRefreshEnabled, lastSyncTime, syncState)
+        }.stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue =
+                WebDavSyncSettingsState(
+                    autoSyncEnabled = webDavCoordinator.webDavAutoSyncEnabled.value,
+                    autoSyncInterval = webDavCoordinator.webDavAutoSyncInterval.value,
+                    syncOnRefreshEnabled = webDavCoordinator.webDavSyncOnRefreshEnabled.value,
+                    lastSyncTime = webDavCoordinator.webDavLastSyncTime.value,
+                    syncState = webDavCoordinator.webDavSyncState.value,
+                ),
+        )
+
+    private val webDavState: StateFlow<WebDavSectionState> =
+        combine(
+            webDavIdentityState,
+            webDavSyncSettingsState,
+            webDavCoordinator.connectionTestState,
+        ) { identity, syncSettings, connectionTestState ->
+            WebDavSectionState(
+                enabled = identity.enabled,
+                provider = identity.provider,
+                baseUrl = identity.baseUrl,
+                endpointUrl = identity.endpointUrl,
+                username = identity.username,
+                passwordConfigured = identity.passwordConfigured,
+                autoSyncEnabled = syncSettings.autoSyncEnabled,
+                autoSyncInterval = syncSettings.autoSyncInterval,
+                syncOnRefreshEnabled = syncSettings.syncOnRefreshEnabled,
+                lastSyncTime = syncSettings.lastSyncTime,
+                syncState = syncSettings.syncState,
+                connectionTestState = connectionTestState,
+            )
+        }.stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue =
+                WebDavSectionState(
+                    enabled = webDavIdentityState.value.enabled,
+                    provider = webDavIdentityState.value.provider,
+                    baseUrl = webDavIdentityState.value.baseUrl,
+                    endpointUrl = webDavIdentityState.value.endpointUrl,
+                    username = webDavIdentityState.value.username,
+                    passwordConfigured = webDavIdentityState.value.passwordConfigured,
+                    autoSyncEnabled = webDavSyncSettingsState.value.autoSyncEnabled,
+                    autoSyncInterval = webDavSyncSettingsState.value.autoSyncInterval,
+                    syncOnRefreshEnabled = webDavSyncSettingsState.value.syncOnRefreshEnabled,
+                    lastSyncTime = webDavSyncSettingsState.value.lastSyncTime,
+                    syncState = webDavSyncSettingsState.value.syncState,
+                    connectionTestState = webDavCoordinator.connectionTestState.value,
+                ),
+        )
+
     private val interactionState: StateFlow<InteractionSectionState> =
         combine(
             appConfigCoordinator.hapticFeedbackEnabled,
@@ -243,13 +328,7 @@ class SettingsStateProvider(
             appConfigCoordinator.freeTextCopyEnabled,
             appConfigCoordinator.appLockEnabled,
         ) { hapticEnabled, showInputHints, doubleTapEditEnabled, freeTextCopyEnabled, appLockEnabled ->
-            InteractionSectionState(
-                hapticEnabled = hapticEnabled,
-                showInputHints = showInputHints,
-                doubleTapEditEnabled = doubleTapEditEnabled,
-                freeTextCopyEnabled = freeTextCopyEnabled,
-                appLockEnabled = appLockEnabled,
-            )
+            InteractionSectionState(hapticEnabled, showInputHints, doubleTapEditEnabled, freeTextCopyEnabled, appLockEnabled)
         }.stateIn(
             scope = scope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -265,28 +344,31 @@ class SettingsStateProvider(
 
     private val systemState: StateFlow<SystemSectionState> =
         appConfigCoordinator.checkUpdatesOnStartup
-            .map { checkUpdatesOnStartup ->
-                SystemSectionState(checkUpdatesOnStartup = checkUpdatesOnStartup)
-            }.stateIn(
+            .map(::SystemSectionState)
+            .stateIn(
                 scope = scope,
                 started = SharingStarted.WhileSubscribed(5000),
-                initialValue = SystemSectionState(checkUpdatesOnStartup = appConfigCoordinator.checkUpdatesOnStartup.value),
+                initialValue = SystemSectionState(appConfigCoordinator.checkUpdatesOnStartup.value),
             )
 
+    private val coreWithoutWebDav: StateFlow<Pair<StorageSectionState, Pair<DisplaySectionState, Pair<LanShareSectionState, Pair<ShareCardSectionState, GitSectionState>>>>> =
+        combine(storageState, displayState, lanShareState, shareCardState, gitState) { storage, display, lanShare, shareCard, git ->
+            storage to (display to (lanShare to (shareCard to git)))
+        }.stateIn(
+            scope = scope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = storageState.value to (displayState.value to (lanShareState.value to (shareCardState.value to gitState.value))),
+        )
+
     private val coreUiSections: StateFlow<CoreUiSections> =
-        combine(
-            storageState,
-            displayState,
-            lanShareState,
-            shareCardState,
-            gitState,
-        ) { storage, display, lanShare, shareCard, git ->
+        combine(coreWithoutWebDav, webDavState) { core, webDav ->
             CoreUiSections(
-                storage = storage,
-                display = display,
-                lanShare = lanShare,
-                shareCard = shareCard,
-                git = git,
+                storage = core.first,
+                display = core.second.first,
+                lanShare = core.second.second.first,
+                shareCard = core.second.second.second.first,
+                git = core.second.second.second.second,
+                webDav = webDav,
             )
         }.stateIn(
             scope = scope,
@@ -298,22 +380,19 @@ class SettingsStateProvider(
                     lanShare = lanShareState.value,
                     shareCard = shareCardState.value,
                     git = gitState.value,
+                    webDav = webDavState.value,
                 ),
         )
 
     val uiState: StateFlow<SettingsScreenUiState> =
-        combine(
-            coreUiSections,
-            interactionState,
-            systemState,
-            operationError,
-        ) { core, interaction, system, operationError ->
+        combine(coreUiSections, interactionState, systemState, operationError) { core, interaction, system, operationError ->
             SettingsScreenUiState(
                 storage = core.storage,
                 display = core.display,
                 lanShare = core.lanShare,
                 shareCard = core.shareCard,
                 git = core.git,
+                webDav = core.webDav,
                 interaction = interaction,
                 system = system,
                 operationError = operationError,
@@ -328,6 +407,7 @@ class SettingsStateProvider(
                     lanShare = coreUiSections.value.lanShare,
                     shareCard = coreUiSections.value.shareCard,
                     git = coreUiSections.value.git,
+                    webDav = coreUiSections.value.webDav,
                     interaction = interactionState.value,
                     system = systemState.value,
                     operationError = operationError.value,

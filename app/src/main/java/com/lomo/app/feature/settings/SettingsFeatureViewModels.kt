@@ -2,6 +2,7 @@ package com.lomo.app.feature.settings
 
 import com.lomo.domain.model.ShareCardStyle
 import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.model.WebDavProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -211,4 +212,61 @@ class SettingsGitFeatureViewModel(
     fun resetGitRepository() {
         actionCoordinator.resetGitRepository()
     }
+}
+
+class SettingsWebDavFeatureViewModel(
+    private val actionCoordinator: SettingsActionCoordinator,
+    private val webDavCoordinator: SettingsWebDavCoordinator,
+) {
+    fun updateWebDavSyncEnabled(enabled: Boolean) {
+        actionCoordinator.updateWebDavSyncEnabled(enabled)
+    }
+
+    fun updateProvider(provider: WebDavProvider) {
+        actionCoordinator.updateWebDavProvider(provider)
+    }
+
+    fun updateBaseUrl(url: String) {
+        actionCoordinator.updateWebDavBaseUrl(url)
+    }
+
+    fun updateEndpointUrl(url: String) {
+        actionCoordinator.updateWebDavEndpointUrl(url)
+    }
+
+    fun updateUsername(username: String) {
+        actionCoordinator.updateWebDavUsername(username)
+    }
+
+    fun updatePassword(password: String) {
+        actionCoordinator.updateWebDavPassword(password)
+    }
+
+    fun updateAutoSyncEnabled(enabled: Boolean) {
+        actionCoordinator.updateWebDavAutoSyncEnabled(enabled)
+    }
+
+    fun updateAutoSyncInterval(interval: String) {
+        actionCoordinator.updateWebDavAutoSyncInterval(interval)
+    }
+
+    fun updateSyncOnRefresh(enabled: Boolean) {
+        actionCoordinator.updateWebDavSyncOnRefresh(enabled)
+    }
+
+    fun triggerSyncNow() {
+        actionCoordinator.triggerWebDavSyncNow()
+    }
+
+    fun testConnection() {
+        actionCoordinator.testWebDavConnection()
+    }
+
+    fun resetConnectionTestState() {
+        webDavCoordinator.resetConnectionTestState()
+    }
+
+    fun isValidUrl(url: String): Boolean = webDavCoordinator.isValidWebDavUrl(url)
+
+    fun isValidWebDavUrl(url: String): Boolean = webDavCoordinator.isValidWebDavUrl(url)
 }

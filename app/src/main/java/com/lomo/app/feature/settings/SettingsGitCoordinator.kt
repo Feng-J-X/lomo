@@ -2,6 +2,7 @@ package com.lomo.app.feature.settings
 
 import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.PreferenceDefaults
+import com.lomo.domain.model.SyncBackendType
 import com.lomo.domain.model.SyncEngineState
 import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.SyncPolicyRepository
@@ -130,8 +131,8 @@ class SettingsGitCoordinator(
 
     suspend fun updateGitSyncEnabled(enabled: Boolean): String? =
         runWithError("Failed to update Git sync setting") {
-            gitSyncRepo.setGitSyncEnabled(enabled)
-            syncPolicyRepository.applyGitSyncPolicy()
+            syncPolicyRepository.setRemoteSyncBackend(if (enabled) SyncBackendType.GIT else SyncBackendType.NONE)
+            syncPolicyRepository.applyRemoteSyncPolicy()
         }
 
     suspend fun updateGitRemoteUrl(url: String): String? =
@@ -182,13 +183,13 @@ class SettingsGitCoordinator(
     suspend fun updateGitAutoSyncEnabled(enabled: Boolean): String? =
         runWithError("Failed to update Git auto-sync setting") {
             gitSyncRepo.setAutoSyncEnabled(enabled)
-            syncPolicyRepository.applyGitSyncPolicy()
+            syncPolicyRepository.applyRemoteSyncPolicy()
         }
 
     suspend fun updateGitAutoSyncInterval(interval: String): String? =
         runWithError("Failed to update Git auto-sync interval") {
             gitSyncRepo.setAutoSyncInterval(interval)
-            syncPolicyRepository.applyGitSyncPolicy()
+            syncPolicyRepository.applyRemoteSyncPolicy()
         }
 
     suspend fun updateGitSyncOnRefresh(enabled: Boolean): String? =

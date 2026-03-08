@@ -16,6 +16,7 @@ import com.lomo.app.R
 import com.lomo.app.feature.lanshare.LanSharePairingCodePolicy
 import com.lomo.domain.model.ShareCardStyle
 import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.model.WebDavProvider
 import com.lomo.ui.component.dialog.SelectionDialog
 
 data class SettingsDialogOptions(
@@ -26,11 +27,13 @@ data class SettingsDialogOptions(
     val filenameFormats: List<String>,
     val timestampFormats: List<String>,
     val gitSyncIntervals: List<String>,
+    val webDavProviders: List<WebDavProvider>,
     val languageTag: String,
     val languageLabels: Map<String, String>,
     val themeModeLabels: Map<ThemeMode, String>,
     val shareCardStyleLabels: Map<ShareCardStyle, String>,
     val gitSyncIntervalLabels: Map<String, String>,
+    val webDavProviderLabels: Map<WebDavProvider, String>,
 )
 
 @Composable
@@ -41,6 +44,7 @@ fun SettingsDialogHost(
     shareCardFeature: SettingsShareCardFeatureViewModel,
     lanShareFeature: SettingsLanShareFeatureViewModel,
     gitFeature: SettingsGitFeatureViewModel,
+    webDavFeature: SettingsWebDavFeatureViewModel,
     dialogState: SettingsDialogState,
     options: SettingsDialogOptions,
     onApplyLanguageTag: (String) -> Unit,
@@ -503,4 +507,191 @@ fun SettingsDialogHost(
             },
         )
     }
+
+
+    if (dialogState.showWebDavProviderDialog) {
+        SelectionDialog(
+            title = stringResource(R.string.settings_webdav_select_provider),
+            options = options.webDavProviders,
+            currentSelection = uiState.webDav.provider,
+            onDismiss = { dialogState.showWebDavProviderDialog = false },
+            onSelect = {
+                webDavFeature.updateProvider(it)
+                dialogState.showWebDavProviderDialog = false
+            },
+            labelProvider = { options.webDavProviderLabels[it] ?: it.name },
+        )
+    }
+
+    if (dialogState.showWebDavBaseUrlDialog) {
+        val isUrlValid = webDavFeature.isValidWebDavUrl(dialogState.webDavBaseUrlInput)
+        AlertDialog(
+            onDismissRequest = { dialogState.showWebDavBaseUrlDialog = false },
+            title = { Text(stringResource(R.string.settings_webdav_base_url)) },
+            text = {
+                OutlinedTextField(
+                    value = dialogState.webDavBaseUrlInput,
+                    onValueChange = { dialogState.webDavBaseUrlInput = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.settings_webdav_base_url_hint)) },
+                    isError = dialogState.webDavBaseUrlInput.isNotBlank() && !isUrlValid,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        webDavFeature.updateBaseUrl(dialogState.webDavBaseUrlInput.trim())
+                        dialogState.showWebDavBaseUrlDialog = false
+                    },
+                    enabled = isUrlValid,
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogState.showWebDavBaseUrlDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (dialogState.showWebDavEndpointUrlDialog) {
+        val isUrlValid = webDavFeature.isValidWebDavUrl(dialogState.webDavEndpointUrlInput)
+        AlertDialog(
+            onDismissRequest = { dialogState.showWebDavEndpointUrlDialog = false },
+            title = { Text(stringResource(R.string.settings_webdav_endpoint_url)) },
+            text = {
+                OutlinedTextField(
+                    value = dialogState.webDavEndpointUrlInput,
+                    onValueChange = { dialogState.webDavEndpointUrlInput = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.settings_webdav_endpoint_url_hint)) },
+                    isError = dialogState.webDavEndpointUrlInput.isNotBlank() && !isUrlValid,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        webDavFeature.updateEndpointUrl(dialogState.webDavEndpointUrlInput.trim())
+                        dialogState.showWebDavEndpointUrlDialog = false
+                    },
+                    enabled = isUrlValid,
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogState.showWebDavEndpointUrlDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (dialogState.showWebDavUsernameDialog) {
+        AlertDialog(
+            onDismissRequest = { dialogState.showWebDavUsernameDialog = false },
+            title = { Text(stringResource(R.string.settings_webdav_username)) },
+            text = {
+                OutlinedTextField(
+                    value = dialogState.webDavUsernameInput,
+                    onValueChange = { dialogState.webDavUsernameInput = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.settings_webdav_username_hint)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        webDavFeature.updateUsername(dialogState.webDavUsernameInput.trim())
+                        dialogState.showWebDavUsernameDialog = false
+                    },
+                    enabled = dialogState.webDavUsernameInput.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogState.showWebDavUsernameDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (dialogState.showWebDavPasswordDialog) {
+        val messageRes =
+            when (uiState.webDav.provider) {
+                WebDavProvider.NUTSTORE -> R.string.settings_webdav_password_dialog_message_nutstore
+                WebDavProvider.NEXTCLOUD -> R.string.settings_webdav_password_dialog_message_nextcloud
+                WebDavProvider.CUSTOM -> R.string.settings_webdav_password_dialog_message_custom
+            }
+        AlertDialog(
+            onDismissRequest = { dialogState.showWebDavPasswordDialog = false },
+            title = { Text(stringResource(R.string.settings_webdav_password_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(messageRes),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = dialogState.webDavPasswordInput,
+                        onValueChange = { dialogState.webDavPasswordInput = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.settings_webdav_password_hint)) },
+                        visualTransformation =
+                            if (dialogState.webDavPasswordVisible) {
+                                VisualTransformation.None
+                            } else {
+                                PasswordVisualTransformation()
+                            },
+                    )
+                    TextButton(onClick = { dialogState.webDavPasswordVisible = !dialogState.webDavPasswordVisible }) {
+                        Text(
+                            stringResource(
+                                if (dialogState.webDavPasswordVisible) {
+                                    R.string.settings_hide_password
+                                } else {
+                                    R.string.settings_show_password
+                                },
+                            ),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        webDavFeature.updatePassword(dialogState.webDavPasswordInput.trim())
+                        dialogState.showWebDavPasswordDialog = false
+                    },
+                    enabled = dialogState.webDavPasswordInput.isNotBlank(),
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogState.showWebDavPasswordDialog = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (dialogState.showWebDavSyncIntervalDialog) {
+        SelectionDialog(
+            title = stringResource(R.string.settings_webdav_select_sync_interval),
+            options = options.gitSyncIntervals,
+            currentSelection = uiState.webDav.autoSyncInterval,
+            onDismiss = { dialogState.showWebDavSyncIntervalDialog = false },
+            onSelect = {
+                webDavFeature.updateAutoSyncInterval(it)
+                dialogState.showWebDavSyncIntervalDialog = false
+            },
+            labelProvider = { options.gitSyncIntervalLabels[it] ?: it },
+        )
+    }
+
 }

@@ -8,10 +8,13 @@ class SettingsActionCoordinator(
     private val scope: CoroutineScope,
     private val lanShareCoordinator: SettingsLanShareCoordinator,
     private val gitCoordinator: SettingsGitCoordinator,
+    private val webDavCoordinator: SettingsWebDavCoordinator,
     private val errorMapper: SettingsOperationErrorMapper,
     private val onOperationError: (String) -> Unit,
 ) {
     fun refreshPatConfigured() = launchWithOperationResult { gitCoordinator.refreshPatConfigured() }
+
+    fun refreshWebDavPasswordConfigured() = launchWithOperationResult { webDavCoordinator.refreshPasswordConfigured() }
 
     fun updateLanShareE2eEnabled(enabled: Boolean) {
         launchWithError("Failed to update secure share setting") {
@@ -66,6 +69,29 @@ class SettingsActionCoordinator(
     fun testGitConnection() = launchWithOperationResult { gitCoordinator.testGitConnection() }
 
     fun resetGitRepository() = launchWithOperationResult { gitCoordinator.resetGitRepository() }
+
+    fun updateWebDavSyncEnabled(enabled: Boolean) = launchWithOperationResult { webDavCoordinator.updateWebDavSyncEnabled(enabled) }
+
+    fun updateWebDavProvider(provider: com.lomo.domain.model.WebDavProvider) =
+        launchWithOperationResult { webDavCoordinator.updateWebDavProvider(provider) }
+
+    fun updateWebDavBaseUrl(url: String) = launchWithOperationResult { webDavCoordinator.updateWebDavBaseUrl(url) }
+
+    fun updateWebDavEndpointUrl(url: String) = launchWithOperationResult { webDavCoordinator.updateWebDavEndpointUrl(url) }
+
+    fun updateWebDavUsername(username: String) = launchWithOperationResult { webDavCoordinator.updateWebDavUsername(username) }
+
+    fun updateWebDavPassword(password: String) = launchWithOperationResult { webDavCoordinator.updateWebDavPassword(password) }
+
+    fun updateWebDavAutoSyncEnabled(enabled: Boolean) = launchWithOperationResult { webDavCoordinator.updateWebDavAutoSyncEnabled(enabled) }
+
+    fun updateWebDavAutoSyncInterval(interval: String) = launchWithOperationResult { webDavCoordinator.updateWebDavAutoSyncInterval(interval) }
+
+    fun updateWebDavSyncOnRefresh(enabled: Boolean) = launchWithOperationResult { webDavCoordinator.updateWebDavSyncOnRefresh(enabled) }
+
+    fun triggerWebDavSyncNow() = launchWithOperationResult { webDavCoordinator.triggerWebDavSyncNow() }
+
+    fun testWebDavConnection() = launchWithOperationResult { webDavCoordinator.testWebDavConnection() }
 
     private fun launchWithOperationResult(action: suspend () -> String?) {
         scope.launch {

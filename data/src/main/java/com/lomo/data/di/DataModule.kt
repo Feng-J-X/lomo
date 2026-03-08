@@ -10,11 +10,13 @@ import com.lomo.data.local.MEMO_DATABASE_VERSION
 import com.lomo.data.local.MemoDatabase
 import com.lomo.data.local.dao.LocalFileStateDao
 import com.lomo.data.local.dao.MemoDao
+import com.lomo.data.local.dao.WebDavSyncMetadataDao
 import com.lomo.data.repository.AppRuntimeInfoRepositoryImpl
 import com.lomo.data.repository.AppUpdateRepositoryImpl
 import com.lomo.data.repository.AppVersionRepositoryImpl
 import com.lomo.data.repository.GitSyncRepositoryImpl
 import com.lomo.data.repository.MediaRepositoryImpl
+import com.lomo.data.repository.WebDavSyncRepositoryImpl
 import com.lomo.data.repository.MemoRefreshDbApplier
 import com.lomo.data.repository.MemoRefreshEngine
 import com.lomo.data.repository.MemoRefreshParserWorker
@@ -35,6 +37,7 @@ import com.lomo.domain.repository.MemoRepository
 import com.lomo.domain.repository.PreferencesRepository
 import com.lomo.domain.repository.ShareImageRepository
 import com.lomo.domain.repository.SyncPolicyRepository
+import com.lomo.domain.repository.WebDavSyncRepository
 import com.lomo.domain.repository.WorkspaceTransitionRepository
 import dagger.Module
 import dagger.Provides
@@ -89,6 +92,10 @@ object DataModule {
     @Provides
     @Singleton
     fun provideLocalFileStateDao(database: MemoDatabase): LocalFileStateDao = database.localFileStateDao()
+
+    @Provides
+    @Singleton
+    fun provideWebDavSyncMetadataDao(database: MemoDatabase): WebDavSyncMetadataDao = database.webDavSyncMetadataDao()
 
     @Provides
     @Singleton
@@ -251,6 +258,7 @@ object DataModule {
         dataStore: com.lomo.data.local.datastore.LomoDataStore,
         memoSynchronizer: com.lomo.data.repository.MemoSynchronizer,
         safGitMirrorBridge: com.lomo.data.git.SafGitMirrorBridge,
+        gitMediaSyncBridge: com.lomo.data.git.GitMediaSyncBridge,
         markdownParser: com.lomo.data.parser.MarkdownParser,
     ): GitSyncRepositoryImpl =
         GitSyncRepositoryImpl(
@@ -259,12 +267,68 @@ object DataModule {
             dataStore,
             memoSynchronizer,
             safGitMirrorBridge,
+            gitMediaSyncBridge,
             markdownParser,
         )
 
     @Provides
     @Singleton
     fun provideGitSyncRepository(impl: GitSyncRepositoryImpl): GitSyncRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideWebDavSyncPlanner(): com.lomo.data.repository.WebDavSyncPlanner = com.lomo.data.repository.WebDavSyncPlanner()
+
+    @Provides
+    @Singleton
+    fun provideGitMediaSyncPlanner(): com.lomo.data.git.GitMediaSyncPlanner = com.lomo.data.git.GitMediaSyncPlanner()
+
+    @Provides
+    @Singleton
+    fun provideWebDavClientFactory(
+        factory: com.lomo.data.webdav.Dav4jvmWebDavClientFactory,
+    ): com.lomo.data.webdav.WebDavClientFactory = factory
+
+    @Provides
+    @Singleton
+    fun provideWebDavEndpointResolver(
+        resolver: com.lomo.data.webdav.DefaultWebDavEndpointResolver,
+    ): com.lomo.data.webdav.WebDavEndpointResolver = resolver
+
+    @Provides
+    @Singleton
+    fun provideGitMediaSyncStateStore(
+        impl: com.lomo.data.git.FileGitMediaSyncStateStore,
+    ): com.lomo.data.git.GitMediaSyncStateStore = impl
+
+    @Provides
+    @Singleton
+    fun provideWebDavSyncRepositoryImpl(
+        dataStore: com.lomo.data.local.datastore.LomoDataStore,
+        credentialStore: com.lomo.data.webdav.WebDavCredentialStore,
+        endpointResolver: com.lomo.data.webdav.WebDavEndpointResolver,
+        clientFactory: com.lomo.data.webdav.WebDavClientFactory,
+        fileDataSource: com.lomo.data.source.FileDataSource,
+        localMediaSyncStore: com.lomo.data.webdav.LocalMediaSyncStore,
+        metadataDao: com.lomo.data.local.dao.WebDavSyncMetadataDao,
+        memoSynchronizer: com.lomo.data.repository.MemoSynchronizer,
+        planner: com.lomo.data.repository.WebDavSyncPlanner,
+    ): WebDavSyncRepositoryImpl =
+        WebDavSyncRepositoryImpl(
+            dataStore = dataStore,
+            credentialStore = credentialStore,
+            endpointResolver = endpointResolver,
+            clientFactory = clientFactory,
+            fileDataSource = fileDataSource,
+            localMediaSyncStore = localMediaSyncStore,
+            metadataDao = metadataDao,
+            memoSynchronizer = memoSynchronizer,
+            planner = planner,
+        )
+
+    @Provides
+    @Singleton
+    fun provideWebDavSyncRepository(impl: WebDavSyncRepositoryImpl): WebDavSyncRepository = impl
 
     @Provides
     @Singleton

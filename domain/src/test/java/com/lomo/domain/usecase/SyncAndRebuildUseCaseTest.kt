@@ -1,8 +1,12 @@
 package com.lomo.domain.usecase
 
 import com.lomo.domain.model.GitSyncResult
+import com.lomo.domain.model.SyncBackendType
+import com.lomo.domain.model.WebDavSyncResult
 import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.MemoRepository
+import com.lomo.domain.repository.SyncPolicyRepository
+import com.lomo.domain.repository.WebDavSyncRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -20,11 +24,20 @@ import org.junit.Test
 class SyncAndRebuildUseCaseTest {
     private val memoRepository: MemoRepository = mockk()
     private val gitSyncRepository: GitSyncRepository = mockk()
-    private val useCase = SyncAndRebuildUseCase(memoRepository, gitSyncRepository)
+    private val webDavSyncRepository: WebDavSyncRepository = mockk()
+    private val syncPolicyRepository: SyncPolicyRepository = mockk()
+    private val useCase =
+        SyncAndRebuildUseCase(
+            memoRepository = memoRepository,
+            gitSyncRepository = gitSyncRepository,
+            webDavSyncRepository = webDavSyncRepository,
+            syncPolicyRepository = syncPolicyRepository,
+        )
 
     @Test
-    fun `non-force sync cancellation is rethrown and refresh is skipped`() =
+    fun `non-force git sync cancellation is rethrown and refresh is skipped`() =
         runTest {
+            every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.GIT)
             every { gitSyncRepository.getSyncOnRefreshEnabled() } returns flowOf(true)
             every { gitSyncRepository.isGitSyncEnabled() } returns flowOf(true)
             val cancellation = CancellationException("cancelled")
@@ -42,8 +55,9 @@ class SyncAndRebuildUseCaseTest {
         }
 
     @Test
-    fun `force sync failure still refreshes and rethrows original error`() =
+    fun `force sync failure still refreshes and rethrows original git error`() =
         runTest {
+            every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.GIT)
             val failure = IllegalStateException("sync failed")
             coEvery { gitSyncRepository.sync() } throws failure
             coEvery { memoRepository.refreshMemos() } returns Unit
@@ -62,9 +76,10 @@ class SyncAndRebuildUseCaseTest {
         }
 
     @Test
-    fun `force sync result error still refreshes and throws mapped failure`() =
+    fun `force sync webdav result error still refreshes and throws mapped failure`() =
         runTest {
-            coEvery { gitSyncRepository.sync() } returns GitSyncResult.Error("sync failed")
+            every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.WEBDAV)
+            coEvery { webDavSyncRepository.sync() } returns WebDavSyncResult.Error("sync failed")
             coEvery { memoRepository.refreshMemos() } returns Unit
 
             val thrown = runCatching { useCase(forceSync = true) }.exceptionOrNull()
@@ -72,18 +87,19 @@ class SyncAndRebuildUseCaseTest {
             assertEquals("sync failed", thrown?.message)
 
             coVerifyOrder {
-                gitSyncRepository.sync()
+                webDavSyncRepository.sync()
                 memoRepository.refreshMemos()
             }
         }
 
     @Test
-    fun `force sync result cancellation is rethrown`() =
+    fun `force sync result cancellation is rethrown for webdav`() =
         runTest {
+            every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.WEBDAV)
             val cancellation = CancellationException("cancelled")
             coEvery {
-                gitSyncRepository.sync()
-            } returns GitSyncResult.Error("cancelled", cancellation)
+                webDavSyncRepository.sync()
+            } returns WebDavSyncResult.Error("cancelled", cancellation)
             coEvery { memoRepository.refreshMemos() } returns Unit
 
             try {
@@ -93,13 +109,14 @@ class SyncAndRebuildUseCaseTest {
                 assertSame(cancellation, e)
             }
 
-            coVerify(exactly = 1) { gitSyncRepository.sync() }
+            coVerify(exactly = 1) { webDavSyncRepository.sync() }
             coVerify(exactly = 0) { memoRepository.refreshMemos() }
         }
 
     @Test
     fun `non-force sync failure remains best-effort and refresh still runs`() =
         runTest {
+            every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.GIT)
             every { gitSyncRepository.getSyncOnRefreshEnabled() } returns flowOf(true)
             every { gitSyncRepository.isGitSyncEnabled() } returns flowOf(true)
             coEvery { gitSyncRepository.sync() } throws IllegalArgumentException("sync failed")
@@ -111,5 +128,19 @@ class SyncAndRebuildUseCaseTest {
                 gitSyncRepository.sync()
                 memoRepository.refreshMemos()
             }
+        }
+
+    @Test
+    fun `non-force webdav refresh skips remote sync when disabled`() =
+        runTest {
+            every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.WEBDAV)
+            every { webDavSyncRepository.getSyncOnRefreshEnabled() } returns flowOf(true)
+            every { webDavSyncRepository.isWebDavSyncEnabled() } returns flowOf(false)
+            coEvery { memoRepository.refreshMemos() } returns Unit
+
+            useCase(forceSync = false)
+
+            coVerify(exactly = 0) { webDavSyncRepository.sync() }
+            coVerify(exactly = 1) { memoRepository.refreshMemos() }
         }
 }

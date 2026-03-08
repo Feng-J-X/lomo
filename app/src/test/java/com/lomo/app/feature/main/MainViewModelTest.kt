@@ -3,6 +3,7 @@ package com.lomo.app.feature.main
 import com.lomo.app.provider.ImageMapProvider
 import com.lomo.app.repository.AppWidgetRepository
 import com.lomo.domain.model.Memo
+import com.lomo.domain.model.SyncBackendType
 import com.lomo.domain.model.MemoSortOption
 import com.lomo.domain.model.ShareCardStyle
 import com.lomo.domain.model.StorageArea
@@ -46,6 +47,8 @@ class MainViewModelTest {
     private lateinit var appConfigRepository: com.lomo.domain.repository.AppConfigRepository
     private lateinit var gitSyncRepo: com.lomo.domain.repository.GitSyncRepository
     private lateinit var mediaRepository: com.lomo.domain.repository.MediaRepository
+    private lateinit var webDavSyncRepository: com.lomo.domain.repository.WebDavSyncRepository
+    private lateinit var syncPolicyRepository: com.lomo.domain.repository.SyncPolicyRepository
     private lateinit var appVersionRepository: com.lomo.domain.repository.AppVersionRepository
     private lateinit var appWidgetRepository: AppWidgetRepository
     private lateinit var memoUiMapper: MemoUiMapper
@@ -62,6 +65,8 @@ class MainViewModelTest {
         appConfigRepository = mockk(relaxed = true)
         gitSyncRepo = mockk(relaxed = true)
         mediaRepository = mockk(relaxed = true)
+        webDavSyncRepository = mockk(relaxed = true)
+        syncPolicyRepository = mockk(relaxed = true)
         appVersionRepository = mockk(relaxed = true)
         appWidgetRepository = mockk(relaxed = true)
         memoUiMapper = MemoUiMapper()
@@ -81,6 +86,9 @@ class MainViewModelTest {
         every { repository.getActiveDayCount() } returns flowOf(0)
         every { gitSyncRepo.isGitSyncEnabled() } returns flowOf(false)
         every { gitSyncRepo.getSyncOnRefreshEnabled() } returns flowOf(false)
+        every { webDavSyncRepository.isWebDavSyncEnabled() } returns flowOf(false)
+        every { webDavSyncRepository.getSyncOnRefreshEnabled() } returns flowOf(false)
+        every { syncPolicyRepository.observeRemoteSyncBackend() } returns flowOf(SyncBackendType.NONE)
         every { appConfigRepository.observeLocation(StorageArea.ROOT) } returns flowOf(null)
         coEvery { appConfigRepository.currentRootLocation() } returns null
         every { appConfigRepository.observeLocation(StorageArea.IMAGE) } returns flowOf(null)
@@ -333,7 +341,7 @@ class MainViewModelTest {
                 MainWorkspaceCoordinator(
                     repository = repository,
                     initializeWorkspaceUseCase = InitializeWorkspaceUseCase(appConfigRepository, mediaRepository),
-                    refreshMemosUseCase = RefreshMemosUseCase(SyncAndRebuildUseCase(repository, gitSyncRepo)),
+                    refreshMemosUseCase = RefreshMemosUseCase(SyncAndRebuildUseCase(repository, gitSyncRepo, webDavSyncRepository, syncPolicyRepository)),
                     switchRootStorageUseCase = switchRootStorageUseCase,
                     mediaRepository = mediaRepository,
                 ),
@@ -342,7 +350,7 @@ class MainViewModelTest {
                     appConfigRepository = appConfigRepository,
                     mediaRepository = mediaRepository,
                     initializeWorkspaceUseCase = InitializeWorkspaceUseCase(appConfigRepository, mediaRepository),
-                    syncAndRebuildUseCase = SyncAndRebuildUseCase(repository, gitSyncRepo),
+                    syncAndRebuildUseCase = SyncAndRebuildUseCase(repository, gitSyncRepo, webDavSyncRepository, syncPolicyRepository),
                     appVersionRepository = appVersionRepository,
                     audioPlayerController = audioPlayerController,
                 ),

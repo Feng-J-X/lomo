@@ -24,8 +24,13 @@ class GitRepositoryPrimitives
         fun cleanStaleLockFiles(rootDir: File) {
             val lockFile = File(rootDir, ".git/index.lock")
             if (lockFile.exists()) {
-                val deleted = lockFile.delete()
-                Timber.w("Cleaned stale index.lock: deleted=%b", deleted)
+                val ageMs = System.currentTimeMillis() - lockFile.lastModified()
+                if (ageMs > STALE_LOCK_THRESHOLD_MS) {
+                    val deleted = lockFile.delete()
+                    Timber.w("Cleaned stale index.lock (age=%dms): deleted=%b", ageMs, deleted)
+                } else {
+                    Timber.d("index.lock exists but is recent (age=%dms), skipping", ageMs)
+                }
             }
         }
 
@@ -178,5 +183,9 @@ class GitRepositoryPrimitives
                 Timber.w(e, "Failed to read %s at commit %s", filename, commit.name)
                 null
             }
+        }
+
+        companion object {
+            private const val STALE_LOCK_THRESHOLD_MS = 5 * 60 * 1000L // 5 minutes
         }
     }

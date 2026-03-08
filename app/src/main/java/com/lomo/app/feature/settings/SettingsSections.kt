@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.lomo.app.R
 import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.model.WebDavProvider
 import com.lomo.ui.component.settings.PreferenceItem
 import com.lomo.ui.component.settings.SettingsGroup
 import com.lomo.ui.component.settings.SwitchPreferenceItem
@@ -422,6 +423,200 @@ fun GitSyncSettingsSection(
     }
 }
 
+
+
+@Composable
+fun WebDavSyncSettingsSection(
+    state: WebDavSectionState,
+    providerLabel: String,
+    syncIntervalLabel: String,
+    syncNowSubtitle: String,
+    connectionSubtitle: String,
+    onToggleEnabled: (Boolean) -> Unit,
+    onOpenProviderDialog: () -> Unit,
+    onOpenBaseUrlDialog: () -> Unit,
+    onOpenEndpointUrlDialog: () -> Unit,
+    onOpenUsernameDialog: () -> Unit,
+    onOpenPasswordDialog: () -> Unit,
+    onToggleAutoSync: (Boolean) -> Unit,
+    onOpenSyncIntervalDialog: () -> Unit,
+    onToggleSyncOnRefresh: (Boolean) -> Unit,
+    onSyncNow: () -> Unit,
+    onTestConnection: () -> Unit,
+) {
+    SettingsGroup(title = stringResource(R.string.settings_group_webdav_sync)) {
+        SwitchPreferenceItem(
+            title = stringResource(R.string.settings_webdav_sync_enable),
+            subtitle = stringResource(R.string.settings_webdav_sync_enable_subtitle),
+            icon = Icons.Outlined.Sync,
+            checked = state.enabled,
+            onCheckedChange = onToggleEnabled,
+        )
+        AnimatedVisibility(
+            visible = state.enabled,
+            enter =
+                expandVertically(
+                    animationSpec =
+                        tween(
+                            durationMillis = MotionTokens.DurationMedium2,
+                            easing = MotionTokens.EasingEmphasizedDecelerate,
+                        ),
+                ) +
+                    fadeIn(
+                        animationSpec =
+                            tween(
+                                durationMillis = MotionTokens.DurationMedium2,
+                                easing = MotionTokens.EasingEmphasizedDecelerate,
+                            ),
+                    ),
+            exit =
+                shrinkVertically(
+                    animationSpec =
+                        tween(
+                            durationMillis = MotionTokens.DurationShort4,
+                            easing = MotionTokens.EasingEmphasizedAccelerate,
+                        ),
+                ) +
+                    fadeOut(
+                        animationSpec =
+                            tween(
+                                durationMillis = MotionTokens.DurationShort4,
+                                easing = MotionTokens.EasingEmphasizedAccelerate,
+                            ),
+                    ),
+            label = "WebDavSyncAdvancedVisibility",
+        ) {
+            Column {
+                SettingsDivider()
+                PreferenceItem(
+                    title = stringResource(R.string.settings_webdav_provider),
+                    subtitle = providerLabel,
+                    icon = Icons.Outlined.Link,
+                    onClick = onOpenProviderDialog,
+                )
+                SettingsDivider()
+                when (state.provider) {
+                    WebDavProvider.NEXTCLOUD -> {
+                        PreferenceItem(
+                            title = stringResource(R.string.settings_webdav_base_url),
+                            subtitle = state.baseUrl.ifBlank { stringResource(R.string.settings_not_set) },
+                            icon = Icons.Outlined.Link,
+                            onClick = onOpenBaseUrlDialog,
+                        )
+                    }
+
+                    WebDavProvider.NUTSTORE,
+                    WebDavProvider.CUSTOM,
+                    -> {
+                        PreferenceItem(
+                            title = stringResource(R.string.settings_webdav_endpoint_url),
+                            subtitle = state.endpointUrl.ifBlank { stringResource(R.string.settings_not_set) },
+                            icon = Icons.Outlined.Link,
+                            onClick = onOpenEndpointUrlDialog,
+                        )
+                    }
+                }
+                SettingsDivider()
+                PreferenceItem(
+                    title = stringResource(R.string.settings_webdav_username),
+                    subtitle = state.username.ifBlank { stringResource(R.string.settings_not_set) },
+                    icon = Icons.Outlined.Person,
+                    onClick = onOpenUsernameDialog,
+                )
+                SettingsDivider()
+                PreferenceItem(
+                    title = stringResource(R.string.settings_webdav_password),
+                    subtitle =
+                        stringResource(
+                            if (state.passwordConfigured) {
+                                R.string.settings_webdav_password_configured
+                            } else {
+                                R.string.settings_webdav_password_not_set
+                            },
+                        ),
+                    icon = Icons.Default.Lock,
+                    onClick = onOpenPasswordDialog,
+                )
+                SettingsDivider()
+                SwitchPreferenceItem(
+                    title = stringResource(R.string.settings_webdav_auto_sync),
+                    subtitle = stringResource(R.string.settings_webdav_auto_sync_subtitle),
+                    icon = Icons.Outlined.Schedule,
+                    checked = state.autoSyncEnabled,
+                    onCheckedChange = onToggleAutoSync,
+                )
+                AnimatedVisibility(
+                    visible = state.autoSyncEnabled,
+                    enter =
+                        expandVertically(
+                            animationSpec =
+                                tween(
+                                    durationMillis = MotionTokens.DurationMedium2,
+                                    easing = MotionTokens.EasingEmphasizedDecelerate,
+                                ),
+                        ) +
+                            fadeIn(
+                                animationSpec =
+                                    tween(
+                                        durationMillis = MotionTokens.DurationMedium2,
+                                        easing = MotionTokens.EasingEmphasizedDecelerate,
+                                    ),
+                            ),
+                    exit =
+                        shrinkVertically(
+                            animationSpec =
+                                tween(
+                                    durationMillis = MotionTokens.DurationShort4,
+                                    easing = MotionTokens.EasingEmphasizedAccelerate,
+                                ),
+                        ) +
+                            fadeOut(
+                                animationSpec =
+                                    tween(
+                                        durationMillis = MotionTokens.DurationShort4,
+                                        easing = MotionTokens.EasingEmphasizedAccelerate,
+                                    ),
+                            ),
+                    label = "WebDavAutoSyncIntervalVisibility",
+                ) {
+                    Column {
+                        SettingsDivider()
+                        PreferenceItem(
+                            title = stringResource(R.string.settings_webdav_sync_interval),
+                            subtitle = syncIntervalLabel,
+                            icon = Icons.Outlined.Schedule,
+                            onClick = onOpenSyncIntervalDialog,
+                        )
+                    }
+                }
+                SettingsDivider()
+                SwitchPreferenceItem(
+                    title = stringResource(R.string.settings_webdav_sync_on_refresh),
+                    subtitle = stringResource(R.string.settings_webdav_sync_on_refresh_subtitle),
+                    icon = Icons.Outlined.Refresh,
+                    checked = state.syncOnRefreshEnabled,
+                    onCheckedChange = onToggleSyncOnRefresh,
+                )
+                SettingsDivider()
+                PreferenceItem(
+                    title = stringResource(R.string.settings_webdav_sync_now),
+                    subtitle = syncNowSubtitle,
+                    icon = Icons.Outlined.Sync,
+                    onClick = onSyncNow,
+                )
+                SettingsDivider()
+                PreferenceItem(
+                    title = stringResource(R.string.settings_webdav_test_connection),
+                    subtitle = connectionSubtitle,
+                    icon = Icons.Outlined.Link,
+                    onClick = onTestConnection,
+                )
+            }
+        }
+    }
+}
+
+
 @Composable
 fun InteractionSettingsSection(
     state: InteractionSectionState,
@@ -538,3 +733,13 @@ private fun SettingsDivider() {
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
     )
 }
+
+
+@Composable
+fun connectionTestSubtitle(state: SettingsWebDavConnectionTestState): String =
+    when (state) {
+        is SettingsWebDavConnectionTestState.Idle -> ""
+        is SettingsWebDavConnectionTestState.Testing -> stringResource(R.string.settings_webdav_test_connection_testing)
+        is SettingsWebDavConnectionTestState.Success -> stringResource(R.string.settings_webdav_test_connection_success)
+        is SettingsWebDavConnectionTestState.Error -> stringResource(R.string.settings_webdav_test_connection_failed, state.message)
+    }

@@ -1,0 +1,460 @@
+package com.lomo.data.repository
+
+import com.lomo.data.local.dao.WebDavSyncMetadataDao
+import com.lomo.data.local.datastore.LomoDataStore
+import com.lomo.data.local.entity.WebDavSyncMetadataEntity
+import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MemoDirectoryType
+import com.lomo.data.webdav.WebDavClientFactory
+import com.lomo.data.webdav.WebDavEndpointResolver
+import com.lomo.data.webdav.WebDavRemoteResource
+import com.lomo.data.webdav.LocalMediaSyncStore
+import com.lomo.data.webdav.WebDavCredentialStore
+import com.lomo.domain.model.WebDavProvider
+import com.lomo.domain.model.WebDavSyncDirection
+import com.lomo.domain.model.WebDavSyncReason
+import com.lomo.domain.model.WebDavSyncResult
+import com.lomo.domain.model.WebDavSyncState
+import com.lomo.domain.model.WebDavSyncStatus
+import com.lomo.domain.repository.WebDavSyncRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.atomic.AtomicBoolean
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class WebDavSyncRepositoryImpl
+    @Inject
+    constructor(
+        private val dataStore: LomoDataStore,
+        private val credentialStore: WebDavCredentialStore,
+        private val endpointResolver: WebDavEndpointResolver,
+        private val clientFactory: WebDavClientFactory,
+        private val fileDataSource: FileDataSource,
+        private val localMediaSyncStore: LocalMediaSyncStore,
+        private val metadataDao: WebDavSyncMetadataDao,
+        private val memoSynchronizer: MemoSynchronizer,
+        private val planner: WebDavSyncPlanner,
+    ) : WebDavSyncRepository {
+        private val syncState = MutableStateFlow<WebDavSyncState>(WebDavSyncState.Idle)
+        private val syncGuard = AtomicBoolean(false)
+
+        override fun isWebDavSyncEnabled(): Flow<Boolean> = dataStore.webDavSyncEnabled
+
+        override fun getProvider(): Flow<WebDavProvider> = dataStore.webDavProvider.map(::webDavProviderFromPreference)
+
+        override fun getBaseUrl(): Flow<String?> = dataStore.webDavBaseUrl
+
+        override fun getEndpointUrl(): Flow<String?> = dataStore.webDavEndpointUrl
+
+        override fun getUsername(): Flow<String?> = dataStore.webDavUsername
+
+        override fun getAutoSyncEnabled(): Flow<Boolean> = dataStore.webDavAutoSyncEnabled
+
+        override fun getAutoSyncInterval(): Flow<String> = dataStore.webDavAutoSyncInterval
+
+        override fun getSyncOnRefreshEnabled(): Flow<Boolean> = dataStore.webDavSyncOnRefresh
+
+        override fun observeLastSyncTimeMillis(): Flow<Long?> = dataStore.webDavLastSyncTime.map { stored -> stored.takeIf { it > 0L } }
+
+        override suspend fun setWebDavSyncEnabled(enabled: Boolean) {
+            dataStore.updateWebDavSyncEnabled(enabled)
+        }
+
+        override suspend fun setProvider(provider: WebDavProvider) {
+            dataStore.updateWebDavProvider(provider.preferenceValue)
+        }
+
+        override suspend fun setBaseUrl(url: String) {
+            dataStore.updateWebDavBaseUrl(url.trim())
+        }
+
+        override suspend fun setEndpointUrl(url: String) {
+            dataStore.updateWebDavEndpointUrl(url.trim())
+        }
+
+        override suspend fun setUsername(username: String) {
+            val normalized = username.trim()
+            dataStore.updateWebDavUsername(normalized)
+            credentialStore.setUsername(normalized)
+        }
+
+        override suspend fun setPassword(password: String) {
+            credentialStore.setPassword(password.trim())
+        }
+
+        override suspend fun isPasswordConfigured(): Boolean = !credentialStore.getPassword().isNullOrBlank()
+
+        override suspend fun setAutoSyncEnabled(enabled: Boolean) {
+            dataStore.updateWebDavAutoSyncEnabled(enabled)
+        }
+
+        override suspend fun setAutoSyncInterval(interval: String) {
+            dataStore.updateWebDavAutoSyncInterval(interval)
+        }
+
+        override suspend fun setSyncOnRefreshEnabled(enabled: Boolean) {
+            dataStore.updateWebDavSyncOnRefresh(enabled)
+        }
+
+        override suspend fun sync(): WebDavSyncResult {
+            if (!syncGuard.compareAndSet(false, true)) {
+                return WebDavSyncResult.Success("WebDAV sync already in progress")
+            }
+            try {
+                return performSync()
+            } finally {
+                syncGuard.set(false)
+            }
+        }
+
+        override suspend fun getStatus(): WebDavSyncStatus {
+            val config = resolveConfig() ?: return WebDavSyncStatus(0, 0, 0, null)
+            return runWebDavIo {
+                syncState.value = WebDavSyncState.Listing
+                val client = clientFactory.create(config.endpointUrl, config.username, config.password)
+                client.ensureDirectory("")
+                val localFiles = localFiles()
+                val remoteFiles = remoteFiles(client)
+                val metadata = metadataDao.getAll().associateBy { it.relativePath }
+                val plan = planner.plan(localFiles, remoteFiles, metadata)
+                WebDavSyncStatus(
+                    remoteFileCount = remoteFiles.size,
+                    localFileCount = localFiles.size,
+                    pendingChanges = plan.pendingChanges,
+                    lastSyncTime = dataStore.webDavLastSyncTime.first().takeIf { it > 0L },
+                )
+            }
+        }
+
+        override suspend fun testConnection(): WebDavSyncResult {
+            val config = resolveConfig() ?: return notConfiguredResult()
+            return runCatching {
+                runWebDavIo {
+                    clientFactory.create(config.endpointUrl, config.username, config.password).testConnection()
+                }
+                WebDavSyncResult.Success("WebDAV connection successful")
+            }.getOrElse(::mapConnectionTestError)
+        }
+
+        override fun syncState(): Flow<WebDavSyncState> = syncState
+
+        private suspend fun performSync(): WebDavSyncResult {
+            val config = resolveConfig() ?: return notConfiguredResult()
+            return try {
+                val result = runWebDavIo {
+                    syncState.value = WebDavSyncState.Initializing
+                    val client = clientFactory.create(config.endpointUrl, config.username, config.password)
+                    client.ensureDirectory("")
+
+                    syncState.value = WebDavSyncState.Listing
+                    val localFiles = localFiles()
+                    val remoteFiles =
+                        try {
+                            remoteFiles(client)
+                        } catch (error: Exception) {
+                            throw IllegalStateException(
+                                "Failed to list remote WebDAV files: ${error.message ?: "unknown error"}",
+                                error,
+                            )
+                        }
+                    val existingMetadata = metadataDao.getAll().associateBy { it.relativePath }
+                    val plan = planner.plan(localFiles, remoteFiles, existingMetadata)
+                    val actionOutcomes = mutableMapOf<String, Pair<WebDavSyncDirection, WebDavSyncReason>>()
+                    val failedPaths = mutableListOf<String>()
+
+                    plan.actions.forEach { action ->
+                        try {
+                            when (action.direction) {
+                                WebDavSyncDirection.UPLOAD -> {
+                                    syncState.value = WebDavSyncState.Uploading
+                                    val bytes =
+                                        if (isMemoPath(action.path)) {
+                                            val content =
+                                                fileDataSource.readFileIn(MemoDirectoryType.MAIN, action.path)
+                                            if (content == null) {
+                                                Timber.w("Local memo missing during upload: %s, skipping", action.path)
+                                                return@forEach
+                                            }
+                                            content.toByteArray(StandardCharsets.UTF_8)
+                                        } else {
+                                            localMediaSyncStore.readBytes(action.path)
+                                        }
+                                    client.put(
+                                        path = action.path,
+                                        bytes = bytes,
+                                        contentType = contentTypeForPath(action.path),
+                                        lastModifiedHint = localFiles[action.path]?.lastModified,
+                                    )
+                                }
+
+                                WebDavSyncDirection.DOWNLOAD -> {
+                                    syncState.value = WebDavSyncState.Downloading
+                                    val remoteFile = client.get(action.path)
+                                    if (isMemoPath(action.path)) {
+                                        fileDataSource.saveFileIn(
+                                            directory = MemoDirectoryType.MAIN,
+                                            filename = action.path,
+                                            content = String(remoteFile.bytes, StandardCharsets.UTF_8),
+                                        )
+                                    } else {
+                                        localMediaSyncStore.writeBytes(action.path, remoteFile.bytes)
+                                    }
+                                }
+
+                                WebDavSyncDirection.DELETE_LOCAL -> {
+                                    syncState.value = WebDavSyncState.Deleting
+                                    if (isMemoPath(action.path)) {
+                                        fileDataSource.deleteFileIn(MemoDirectoryType.MAIN, action.path)
+                                    } else {
+                                        localMediaSyncStore.delete(action.path)
+                                    }
+                                }
+
+                                WebDavSyncDirection.DELETE_REMOTE -> {
+                                    syncState.value = WebDavSyncState.Deleting
+                                    client.delete(action.path)
+                                }
+
+                                WebDavSyncDirection.NONE -> Unit
+                            }
+                        } catch (ce: CancellationException) {
+                            throw ce
+                        } catch (error: Exception) {
+                            val operation =
+                                when (action.direction) {
+                                    WebDavSyncDirection.UPLOAD -> "upload"
+                                    WebDavSyncDirection.DOWNLOAD -> "download"
+                                    WebDavSyncDirection.DELETE_LOCAL -> "delete local"
+                                    WebDavSyncDirection.DELETE_REMOTE -> "delete remote"
+                                    WebDavSyncDirection.NONE -> "sync"
+                                }
+                            Timber.e(error, "Failed to %s %s", operation, action.path)
+                            failedPaths += action.path
+                            return@forEach
+                        }
+                        actionOutcomes[action.path] = action.direction to action.reason
+                    }
+
+                    val syncedLocalFiles = localFiles()
+                    val syncedRemoteFiles =
+                        try {
+                            remoteFiles(client)
+                        } catch (error: Exception) {
+                            throw IllegalStateException(
+                                "Failed to reload remote WebDAV files after sync: ${error.message ?: "unknown error"}",
+                                error,
+                            )
+                        }
+                    persistMetadata(
+                        localFiles = syncedLocalFiles,
+                        remoteFiles = syncedRemoteFiles,
+                        actionOutcomes = actionOutcomes,
+                    )
+
+                    if (failedPaths.isNotEmpty()) {
+                        val summary = "WebDAV sync partially failed: ${failedPaths.size} file(s) failed: ${failedPaths.joinToString()}"
+                        WebDavSyncResult.Error(
+                            message = summary,
+                            outcomes = plan.actions.map { it.toOutcome() },
+                        )
+                    } else {
+                        WebDavSyncResult.Success(
+                            message = if (plan.actions.isEmpty()) "WebDAV already up to date" else "WebDAV sync completed",
+                            outcomes = plan.actions.map { it.toOutcome() },
+                        )
+                    }
+                }
+
+                val hasSuccessfulActions = result is WebDavSyncResult.Success ||
+                    (result is WebDavSyncResult.Error && result.outcomes.isNotEmpty())
+
+                if (hasSuccessfulActions) {
+                    try {
+                        memoSynchronizer.refresh()
+                        val now = System.currentTimeMillis()
+                        dataStore.updateWebDavLastSyncTime(now)
+                        when (result) {
+                            is WebDavSyncResult.Success -> {
+                                syncState.value = WebDavSyncState.Success(now, result.message)
+                            }
+                            is WebDavSyncResult.Error -> {
+                                syncState.value = WebDavSyncState.Error(result.message, now)
+                            }
+                            else -> Unit
+                        }
+                        result
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Exception) {
+                        val outcomes = when (result) {
+                            is WebDavSyncResult.Success -> result.outcomes
+                            is WebDavSyncResult.Error -> result.outcomes
+                            else -> emptyList()
+                        }
+                        val message = "WebDAV sync completed but memo refresh failed: ${error.message ?: "unknown error"}"
+                        syncState.value = WebDavSyncState.Error(message, System.currentTimeMillis())
+                        WebDavSyncResult.Error(message, error, outcomes)
+                    }
+                } else {
+                    result
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mapError(error)
+            }
+        }
+
+        private suspend fun persistMetadata(
+            localFiles: Map<String, LocalWebDavFile>,
+            remoteFiles: Map<String, RemoteWebDavFile>,
+            actionOutcomes: Map<String, Pair<WebDavSyncDirection, WebDavSyncReason>>,
+        ) {
+            val now = System.currentTimeMillis()
+            val entities =
+                localFiles.keys
+                    .intersect(remoteFiles.keys)
+                    .sorted()
+                    .mapNotNull { path ->
+                        val local = localFiles[path] ?: return@mapNotNull null
+                        val remote = remoteFiles[path] ?: return@mapNotNull null
+                        val outcome = actionOutcomes[path]
+                        WebDavSyncMetadataEntity(
+                            relativePath = path,
+                            remotePath = path,
+                            etag = remote.etag,
+                            remoteLastModified = remote.lastModified,
+                            localLastModified = local.lastModified,
+                            lastSyncedAt = now,
+                            lastResolvedDirection = outcome?.first?.name ?: WebDavSyncMetadataEntity.NONE,
+                            lastResolvedReason = outcome?.second?.name ?: WebDavSyncMetadataEntity.UNCHANGED,
+                        )
+                    }
+            metadataDao.replaceAll(entities)
+        }
+
+        private suspend fun localFiles(): Map<String, LocalWebDavFile> {
+            val memoFiles =
+                fileDataSource
+                    .listMetadataIn(MemoDirectoryType.MAIN)
+                    .filter { it.filename.endsWith(MEMO_SUFFIX) }
+                    .associate { metadata ->
+                        metadata.filename to LocalWebDavFile(metadata.filename, metadata.lastModified)
+                    }
+            val mediaFiles =
+                localMediaSyncStore
+                    .listFiles()
+                    .mapValues { (path, metadata) ->
+                        LocalWebDavFile(path, metadata.lastModified)
+                    }
+            return memoFiles + mediaFiles
+        }
+
+        private fun remoteFiles(client: com.lomo.data.webdav.WebDavClient): Map<String, RemoteWebDavFile> =
+            buildList {
+                addAll(client.list("").filter { !it.isDirectory && it.path.endsWith(MEMO_SUFFIX) })
+                addAll(client.list("images").filter { !it.isDirectory })
+                addAll(client.list("voice").filter { !it.isDirectory })
+            }.associate(::toRemoteEntry)
+
+        private fun toRemoteEntry(resource: WebDavRemoteResource): Pair<String, RemoteWebDavFile> =
+            resource.path to
+                RemoteWebDavFile(
+                    path = resource.path,
+                    etag = resource.etag,
+                    lastModified = resource.lastModified,
+                )
+
+        private suspend fun resolveConfig(): ResolvedConfig? {
+            val enabled = dataStore.webDavSyncEnabled.first()
+            if (!enabled) {
+                syncState.value = WebDavSyncState.NotConfigured
+                return null
+            }
+
+            val provider = webDavProviderFromPreference(dataStore.webDavProvider.first())
+            val baseUrl = dataStore.webDavBaseUrl.first()
+            val endpointUrl = dataStore.webDavEndpointUrl.first()
+            val username = (dataStore.webDavUsername.first() ?: credentialStore.getUsername())?.trim().orEmpty()
+            val password = credentialStore.getPassword()?.trim().orEmpty()
+            if (username.isBlank() || password.isBlank()) {
+                syncState.value = WebDavSyncState.NotConfigured
+                return null
+            }
+            val resolvedEndpoint = endpointResolver.resolve(provider, baseUrl, endpointUrl, username)
+            if (resolvedEndpoint.isNullOrBlank()) {
+                syncState.value = WebDavSyncState.NotConfigured
+                return null
+            }
+            return ResolvedConfig(
+                provider = provider,
+                endpointUrl = resolvedEndpoint,
+                username = username,
+                password = password,
+            )
+        }
+
+        private fun notConfiguredResult(): WebDavSyncResult {
+            syncState.value = WebDavSyncState.NotConfigured
+            return WebDavSyncResult.NotConfigured
+        }
+
+        private fun mapError(error: Throwable): WebDavSyncResult.Error {
+            val message =
+                when (error) {
+                    is CancellationException -> throw error
+                    else -> error.message?.takeIf { it.isNotBlank() } ?: "WebDAV sync failed"
+                }
+            Timber.e(error, "WebDAV sync failed")
+            syncState.value = WebDavSyncState.Error(message, System.currentTimeMillis())
+            return WebDavSyncResult.Error(message, error)
+        }
+
+        private fun mapConnectionTestError(error: Throwable): WebDavSyncResult.Error {
+            val message =
+                when (error) {
+                    is CancellationException -> throw error
+                    else -> error.message?.takeIf { it.isNotBlank() } ?: "WebDAV connection test failed"
+                }
+            Timber.e(error, "WebDAV connection test failed")
+            return WebDavSyncResult.Error(message, error)
+        }
+
+        private fun isMemoPath(path: String): Boolean = path.endsWith(MEMO_SUFFIX)
+
+        private fun contentTypeForPath(path: String): String =
+            if (isMemoPath(path)) {
+                MARKDOWN_CONTENT_TYPE
+            } else {
+                localMediaSyncStore.contentTypeForPath(path)
+            }
+
+        private suspend fun <T> runWebDavIo(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
+
+        private data class ResolvedConfig(
+            val provider: WebDavProvider,
+            val endpointUrl: String,
+            val username: String,
+            val password: String,
+        )
+
+        private companion object {
+            private const val MEMO_SUFFIX = ".md"
+            private const val MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8"
+        }
+    }
+
+private val WebDavProvider.preferenceValue: String
+    get() = name.lowercase()
+
+private fun webDavProviderFromPreference(value: String): WebDavProvider =
+    WebDavProvider.entries.firstOrNull { it.preferenceValue == value.lowercase() } ?: WebDavProvider.NUTSTORE

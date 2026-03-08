@@ -48,6 +48,16 @@ object PreferenceKeys {
     const val GIT_AUTO_SYNC_INTERVAL = "git_auto_sync_interval"
     const val GIT_LAST_SYNC_TIME = "git_last_sync_time"
     const val GIT_SYNC_ON_REFRESH = "git_sync_on_refresh"
+    const val SYNC_BACKEND_TYPE = "sync_backend_type"
+    const val WEBDAV_SYNC_ENABLED = "webdav_sync_enabled"
+    const val WEBDAV_PROVIDER = "webdav_provider"
+    const val WEBDAV_BASE_URL = "webdav_base_url"
+    const val WEBDAV_ENDPOINT_URL = "webdav_endpoint_url"
+    const val WEBDAV_USERNAME = "webdav_username"
+    const val WEBDAV_AUTO_SYNC_ENABLED = "webdav_auto_sync_enabled"
+    const val WEBDAV_AUTO_SYNC_INTERVAL = "webdav_auto_sync_interval"
+    const val WEBDAV_LAST_SYNC_TIME = "webdav_last_sync_time"
+    const val WEBDAV_SYNC_ON_REFRESH = "webdav_sync_on_refresh"
 
     // Default values
     object Defaults {
@@ -76,5 +86,11 @@ object PreferenceKeys {
         const val GIT_AUTHOR_NAME = PreferenceDefaults.GIT_AUTHOR_NAME
         const val GIT_AUTHOR_EMAIL = PreferenceDefaults.GIT_AUTHOR_EMAIL
         const val GIT_SYNC_ON_REFRESH = PreferenceDefaults.GIT_SYNC_ON_REFRESH
+        const val SYNC_BACKEND_TYPE = PreferenceDefaults.SYNC_BACKEND_TYPE
+        const val WEBDAV_SYNC_ENABLED = PreferenceDefaults.WEBDAV_SYNC_ENABLED
+        const val WEBDAV_PROVIDER = PreferenceDefaults.WEBDAV_PROVIDER
+        const val WEBDAV_AUTO_SYNC_ENABLED = PreferenceDefaults.WEBDAV_AUTO_SYNC_ENABLED
+        const val WEBDAV_AUTO_SYNC_INTERVAL = PreferenceDefaults.WEBDAV_AUTO_SYNC_INTERVAL
+        const val WEBDAV_SYNC_ON_REFRESH = PreferenceDefaults.WEBDAV_SYNC_ON_REFRESH
     }
 }

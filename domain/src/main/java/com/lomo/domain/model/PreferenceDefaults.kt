@@ -22,4 +22,10 @@ object PreferenceDefaults {
     const val GIT_AUTHOR_NAME = "Lomo"
     const val GIT_AUTHOR_EMAIL = ""
     const val GIT_SYNC_ON_REFRESH = false
+    const val SYNC_BACKEND_TYPE = "none"
+    const val WEBDAV_SYNC_ENABLED = false
+    const val WEBDAV_PROVIDER = "nutstore"
+    const val WEBDAV_AUTO_SYNC_ENABLED = false
+    const val WEBDAV_AUTO_SYNC_INTERVAL = "1h"
+    const val WEBDAV_SYNC_ON_REFRESH = false
 }

@@ -15,29 +15,25 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class GitSyncScheduler
+class WebDavSyncScheduler
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
         private val dataStore: LomoDataStore,
     ) {
         suspend fun reschedule() {
-            val gitEnabled = dataStore.gitSyncEnabled.first()
-            val autoSyncEnabled = dataStore.gitAutoSyncEnabled.first()
-
+            val enabled = dataStore.webDavSyncEnabled.first()
+            val autoSyncEnabled = dataStore.webDavAutoSyncEnabled.first()
             val workManager = WorkManager.getInstance(context)
-
-            if (!gitEnabled || !autoSyncEnabled) {
-                workManager.cancelUniqueWork(GitSyncWorker.WORK_NAME)
-                Timber.d("Git auto-sync disabled, cancelled worker")
+            if (!enabled || !autoSyncEnabled) {
+                cancel()
                 return
             }
 
-            val interval = dataStore.gitAutoSyncInterval.first()
+            val interval = dataStore.webDavAutoSyncInterval.first()
             val duration = parseInterval(interval)
-
             val request =
-                PeriodicWorkRequestBuilder<GitSyncWorker>(duration)
+                PeriodicWorkRequestBuilder<WebDavSyncWorker>(duration)
                     .setConstraints(
                         Constraints
                             .Builder()
@@ -46,16 +42,16 @@ class GitSyncScheduler
                     ).build()
 
             workManager.enqueueUniquePeriodicWork(
-                GitSyncWorker.WORK_NAME,
+                WebDavSyncWorker.WORK_NAME,
                 ExistingPeriodicWorkPolicy.REPLACE,
                 request,
             )
-            Timber.d("Git auto-sync scheduled with interval: %s", interval)
+            Timber.d("WebDAV auto-sync scheduled with interval: %s", interval)
         }
 
         fun cancel() {
-            WorkManager.getInstance(context).cancelUniqueWork(GitSyncWorker.WORK_NAME)
-            Timber.d("Git auto-sync cancelled")
+            WorkManager.getInstance(context).cancelUniqueWork(WebDavSyncWorker.WORK_NAME)
+            Timber.d("WebDAV auto-sync cancelled")
         }
 
         private fun parseInterval(interval: String): Duration =

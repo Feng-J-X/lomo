@@ -6,6 +6,7 @@ import com.lomo.domain.repository.AppConfigRepository
 import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.LanShareService
 import com.lomo.domain.repository.SyncPolicyRepository
+import com.lomo.domain.repository.WebDavSyncRepository
 import com.lomo.domain.usecase.GitRemoteUrlUseCase
 import com.lomo.domain.usecase.GitSyncErrorUseCase
 import com.lomo.domain.usecase.SwitchRootStorageUseCase
@@ -23,6 +24,7 @@ class SettingsViewModel
         appConfigRepository: AppConfigRepository,
         shareServiceManager: LanShareService,
         gitSyncRepo: GitSyncRepository,
+        webDavSyncRepository: WebDavSyncRepository,
         syncPolicyRepository: SyncPolicyRepository,
         switchRootStorageUseCase: SwitchRootStorageUseCase,
         syncAndRebuildUseCase: SyncAndRebuildUseCase,
@@ -52,6 +54,14 @@ class SettingsViewModel
                 scope = viewModelScope,
             )
 
+        private val webDavCoordinator =
+            SettingsWebDavCoordinator(
+                webDavSyncRepository = webDavSyncRepository,
+                syncPolicyRepository = syncPolicyRepository,
+                syncAndRebuildUseCase = syncAndRebuildUseCase,
+                scope = viewModelScope,
+            )
+
         private val _operationError = MutableStateFlow<String?>(null)
         private val operationErrorFlow = _operationError.asStateFlow()
         private val errorMapper = SettingsOperationErrorMapper(gitSyncErrorUseCase)
@@ -60,6 +70,7 @@ class SettingsViewModel
                 scope = viewModelScope,
                 lanShareCoordinator = lanShareCoordinator,
                 gitCoordinator = gitCoordinator,
+                webDavCoordinator = webDavCoordinator,
                 errorMapper = errorMapper,
             ) { message ->
                 _operationError.value = message
@@ -69,6 +80,7 @@ class SettingsViewModel
                 appConfigCoordinator = appConfigCoordinator,
                 lanShareCoordinator = lanShareCoordinator,
                 gitCoordinator = gitCoordinator,
+                webDavCoordinator = webDavCoordinator,
                 operationError = operationErrorFlow,
                 scope = viewModelScope,
             )
@@ -114,9 +126,15 @@ class SettingsViewModel
                 actionCoordinator = actionCoordinator,
                 gitCoordinator = gitCoordinator,
             )
+        val webDavFeature =
+            SettingsWebDavFeatureViewModel(
+                actionCoordinator = actionCoordinator,
+                webDavCoordinator = webDavCoordinator,
+            )
 
         init {
             actionCoordinator.refreshPatConfigured()
+            actionCoordinator.refreshWebDavPasswordConfigured()
         }
 
         fun clearOperationError() {
