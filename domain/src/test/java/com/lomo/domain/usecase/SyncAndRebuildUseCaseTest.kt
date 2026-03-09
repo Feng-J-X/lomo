@@ -1,6 +1,5 @@
 package com.lomo.domain.usecase
 
-import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.SyncBackendType
 import com.lomo.domain.model.WebDavSyncResult
 import com.lomo.domain.repository.GitSyncRepository
