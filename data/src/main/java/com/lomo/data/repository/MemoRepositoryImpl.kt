@@ -49,6 +49,12 @@ class MemoRepositoryImpl
 
         override suspend fun getMemoCount(): Int = dao.getMemoCountSync()
 
+        override suspend fun getMemoById(id: String): Memo? {
+            val entity = dao.getMemo(id) ?: return null
+            val pinnedMemoIds = dao.getPinnedMemoIds().toSet()
+            return entity.toDomain(isPinned = entity.id in pinnedMemoIds)
+        }
+
         override suspend fun refreshMemos() {
             synchronizer.refresh()
         }
@@ -94,19 +100,14 @@ class MemoRepositoryImpl
 
         override fun searchMemosList(query: String): Flow<List<Memo>> {
             val trimmed = query.trim()
-            val hasCjk = SearchTokenizer.containsCjk(trimmed)
+            val tokens = SearchTokenizer.tokenizeQueryTerms(trimmed).take(5)
 
             val source =
-                if (hasCjk) {
-                    val tokens = SearchTokenizer.tokenizeQueryTerms(trimmed).take(5)
-                    if (tokens.isEmpty()) {
-                        dao.searchMemosFlow(trimmed)
-                    } else {
-                        val matchQuery = tokens.joinToString(" AND ") { token -> "$token*" }
-                        dao.searchMemosByFtsFlow(matchQuery)
-                    }
-                } else {
+                if (tokens.isEmpty()) {
                     dao.searchMemosFlow(trimmed)
+                } else {
+                    val matchQuery = tokens.joinToString(" ") { token -> "$token*" }
+                    dao.searchMemosByFtsFlow(matchQuery)
                 }
             return combine(
                 source,

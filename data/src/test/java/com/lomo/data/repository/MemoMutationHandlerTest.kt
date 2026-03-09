@@ -6,12 +6,12 @@ import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoFileOutboxEntity
 import com.lomo.data.local.entity.MemoFileOutboxOp
-import com.lomo.data.memo.MemoIdentityPolicy
 import com.lomo.data.source.FileDataSource
 import com.lomo.data.source.FileMetadata
 import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoTextProcessor
 import com.lomo.domain.model.Memo
+import com.lomo.domain.usecase.MemoIdentityPolicy
 import com.lomo.domain.usecase.ResolveMemoUpdateActionUseCase
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
@@ -19,12 +19,16 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.impl.annotations.MockK
 import io.mockk.slot
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.withTimeout
 
 class MemoMutationHandlerTest {
     @MockK(relaxed = true)
@@ -50,9 +54,11 @@ class MemoMutationHandlerTest {
     @Before
     fun setUp() {
         MockKAnnotations.init(this)
+        every { dataStore.storageFilenameFormat } returns flowOf("yyyy_MM_dd")
+        every { dataStore.storageTimestampFormat } returns flowOf("HH:mm:ss")
         handler =
             MemoMutationHandler(
-                fileDataSource = fileDataSource,
+                markdownStorageDataSource = fileDataSource,
                 dao = dao,
                 localFileStateDao = localFileStateDao,
                 savePlanFactory = savePlanFactory,
@@ -158,6 +164,7 @@ class MemoMutationHandlerTest {
                     rawContent = "- 10:00 before",
                     dateKey = "2024_01_15",
                 )
+            every { dataStore.storageFilenameFormat } returns flowOf("yyyy_MM_dd")
             every { dataStore.storageTimestampFormat } returns flowOf("HH:mm")
             coEvery { dao.getMemo(sourceMemo.id) } returns
                 com.lomo.data.local.entity.MemoEntity
@@ -172,5 +179,78 @@ class MemoMutationHandlerTest {
 
             assertEquals(1L, outboxId)
             assertTrue(persistedMemo.captured.updatedAt > sourceMemo.updatedAt)
+        }
+
+    @Test
+    fun `saveMemoInDb reuses cached storage formats across saves`() =
+        runTest {
+            val filenameCollections = AtomicInteger(0)
+            val timestampCollections = AtomicInteger(0)
+            every { dataStore.storageFilenameFormat } returns
+                flow {
+                    check(filenameCollections.incrementAndGet() == 1)
+                    emit("yyyy_MM_dd")
+                }
+            every { dataStore.storageTimestampFormat } returns
+                flow {
+                    check(timestampCollections.incrementAndGet() == 1)
+                    emit("HH:mm")
+                }
+
+            val localHandler =
+                MemoMutationHandler(
+                    markdownStorageDataSource = fileDataSource,
+                    dao = dao,
+                    localFileStateDao = localFileStateDao,
+                    savePlanFactory = savePlanFactory,
+                    textProcessor = MemoTextProcessor(),
+                    dataStore = dataStore,
+                    trashMutationHandler = trashMutationHandler,
+                    resolveMemoUpdateActionUseCase = ResolveMemoUpdateActionUseCase(),
+                    memoIdentityPolicy = MemoIdentityPolicy(),
+                )
+
+            withTimeout(2_000) {
+                while (filenameCollections.get() != 1 || timestampCollections.get() != 1) {
+                    delay(10)
+                }
+            }
+
+            coEvery { dao.countMemoIdCollisions(any(), any()) } returns 0
+            coEvery { dao.countMemosByIdGlob(any()) } returns 0
+            coEvery { dao.persistMemoWithOutbox(any(), any()) } returnsMany listOf(1L, 2L)
+            coEvery {
+                savePlanFactory.create(
+                    content = any(),
+                    timestamp = any(),
+                    filenameFormat = any(),
+                    timestampFormat = any(),
+                    existingFileContent = any(),
+                    precomputedSameTimestampCount = any(),
+                    precomputedCollisionCount = any(),
+                )
+            } answers {
+                val timestamp = secondArg<Long>()
+                MemoSavePlan(
+                    filename = "2024_01_15.md",
+                    dateKey = "2024_01_15",
+                    timestamp = timestamp,
+                    rawContent = "- 10:00 test",
+                    memo =
+                        Memo(
+                            id = "memo_$timestamp",
+                            timestamp = timestamp,
+                            content = firstArg(),
+                            rawContent = "- 10:00 test",
+                            dateKey = "2024_01_15",
+                        ),
+                )
+            }
+
+            localHandler.saveMemoInDb("first", 1_700_000_000_000L)
+            localHandler.saveMemoInDb("second", 1_700_000_100_000L)
+
+            assertEquals(1, filenameCollections.get())
+            assertEquals(1, timestampCollections.get())
         }
 }

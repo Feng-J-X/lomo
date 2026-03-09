@@ -1,7 +1,8 @@
 package com.lomo.data.repository
 
 import android.net.Uri
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MediaStorageDataSource
+import com.lomo.data.source.WorkspaceConfigSource
 import com.lomo.domain.model.MediaCategory
 import com.lomo.domain.model.MediaEntryId
 import com.lomo.domain.model.StorageLocation
@@ -10,13 +11,15 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import timber.log.Timber
 import javax.inject.Inject
 
 class MediaRepositoryImpl
     @Inject
     constructor(
-        private val dataSource: FileDataSource,
+        private val workspaceConfigSource: WorkspaceConfigSource,
+        private val mediaStorageDataSource: MediaStorageDataSource,
     ) : MediaRepository {
         companion object {
             private const val TAG = "MediaRepositoryImpl"
@@ -26,23 +29,31 @@ class MediaRepositoryImpl
 
         private val imageLocationMap = MutableStateFlow<Map<MediaEntryId, StorageLocation>>(emptyMap())
 
-        override suspend fun importImage(source: StorageLocation): StorageLocation =
-            StorageLocation(dataSource.saveImage(Uri.parse(source.raw)))
+        override suspend fun importImage(source: StorageLocation): StorageLocation {
+            val filename = mediaStorageDataSource.saveImage(Uri.parse(source.raw))
+            mediaStorageDataSource.getImageLocation(filename)?.let { location ->
+                imageLocationMap.update { currentMap ->
+                    currentMap + (MediaEntryId(filename) to StorageLocation(location))
+                }
+            }
+            return StorageLocation(filename)
+        }
 
         override suspend fun removeImage(entryId: MediaEntryId) {
-            dataSource.deleteImage(entryId.raw)
+            mediaStorageDataSource.deleteImage(entryId.raw)
+            imageLocationMap.update { currentMap -> currentMap - entryId }
         }
 
         override fun observeImageLocations(): Flow<Map<MediaEntryId, StorageLocation>> = imageLocationMap.asStateFlow()
 
         override suspend fun refreshImageLocations() {
-            if (dataSource.getImageRootFlow().first() == null) {
+            if (workspaceConfigSource.getImageRootFlow().first() == null) {
                 imageLocationMap.value = emptyMap()
                 return
             }
 
             imageLocationMap.value =
-                dataSource.listImageFiles().associate { (name, uri) ->
+                mediaStorageDataSource.listImageFiles().associate { (name, uri) ->
                     MediaEntryId(name) to StorageLocation(uri)
                 }
         }
@@ -52,23 +63,23 @@ class MediaRepositoryImpl
                 MediaCategory.IMAGE -> {
                     createDefaultWorkspace(
                         folderName = IMAGE_DIRECTORY_NAME,
-                        setRoot = dataSource::setImageRoot,
+                        setRoot = workspaceConfigSource::setImageRoot,
                     )
                 }
 
                 MediaCategory.VOICE -> {
                     createDefaultWorkspace(
                         folderName = VOICE_DIRECTORY_NAME,
-                        setRoot = dataSource::setVoiceRoot,
+                        setRoot = workspaceConfigSource::setVoiceRoot,
                     )
                 }
             }
 
         override suspend fun allocateVoiceCaptureTarget(entryId: MediaEntryId): StorageLocation =
-            StorageLocation(dataSource.createVoiceFile(entryId.raw).toString())
+            StorageLocation(mediaStorageDataSource.createVoiceFile(entryId.raw).toString())
 
         override suspend fun removeVoiceCapture(entryId: MediaEntryId) {
-            dataSource.deleteVoiceFile(entryId.raw)
+            mediaStorageDataSource.deleteVoiceFile(entryId.raw)
         }
 
         private suspend fun createDefaultWorkspace(
@@ -76,7 +87,7 @@ class MediaRepositoryImpl
             setRoot: suspend (String) -> Unit,
         ): StorageLocation? =
             try {
-                val uri = dataSource.createDirectory(folderName)
+                val uri = workspaceConfigSource.createDirectory(folderName)
                 setRoot(uri)
                 StorageLocation(uri)
             } catch (e: Exception) {

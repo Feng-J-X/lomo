@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.lomo.data.local.datastore.LomoDataStore
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MediaStorageDataSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -17,7 +17,7 @@ class ShareAttachmentStorage
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
-        private val dataSource: FileDataSource,
+        private val dataSource: MediaStorageDataSource,
         private val dataStore: LomoDataStore,
     ) {
         private companion object {

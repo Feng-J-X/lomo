@@ -3,7 +3,7 @@ package com.lomo.data.repository
 import com.lomo.data.local.dao.WebDavSyncMetadataDao
 import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.data.local.entity.WebDavSyncMetadataEntity
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MarkdownStorageDataSource
 import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.webdav.WebDavClientFactory
 import com.lomo.data.webdav.WebDavEndpointResolver
@@ -38,7 +38,7 @@ class WebDavSyncRepositoryImpl
         private val credentialStore: WebDavCredentialStore,
         private val endpointResolver: WebDavEndpointResolver,
         private val clientFactory: WebDavClientFactory,
-        private val fileDataSource: FileDataSource,
+        private val markdownStorageDataSource: MarkdownStorageDataSource,
         private val localMediaSyncStore: LocalMediaSyncStore,
         private val metadataDao: WebDavSyncMetadataDao,
         private val memoSynchronizer: MemoSynchronizer,
@@ -170,6 +170,8 @@ class WebDavSyncRepositoryImpl
                     val plan = planner.plan(localFiles, remoteFiles, existingMetadata)
                     val actionOutcomes = mutableMapOf<String, Pair<WebDavSyncDirection, WebDavSyncReason>>()
                     val failedPaths = mutableListOf<String>()
+                    var localChanged = false
+                    var remoteChanged = false
 
                     plan.actions.forEach { action ->
                         try {
@@ -179,7 +181,7 @@ class WebDavSyncRepositoryImpl
                                     val bytes =
                                         if (isMemoPath(action.path)) {
                                             val content =
-                                                fileDataSource.readFileIn(MemoDirectoryType.MAIN, action.path)
+                                                markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, action.path)
                                             if (content == null) {
                                                 Timber.w("Local memo missing during upload: %s, skipping", action.path)
                                                 return@forEach
@@ -188,6 +190,7 @@ class WebDavSyncRepositoryImpl
                                         } else {
                                             localMediaSyncStore.readBytes(action.path)
                                         }
+                                    remoteChanged = true
                                     client.put(
                                         path = action.path,
                                         bytes = bytes,
@@ -199,8 +202,9 @@ class WebDavSyncRepositoryImpl
                                 WebDavSyncDirection.DOWNLOAD -> {
                                     syncState.value = WebDavSyncState.Downloading
                                     val remoteFile = client.get(action.path)
+                                    localChanged = true
                                     if (isMemoPath(action.path)) {
-                                        fileDataSource.saveFileIn(
+                                        markdownStorageDataSource.saveFileIn(
                                             directory = MemoDirectoryType.MAIN,
                                             filename = action.path,
                                             content = String(remoteFile.bytes, StandardCharsets.UTF_8),
@@ -212,8 +216,9 @@ class WebDavSyncRepositoryImpl
 
                                 WebDavSyncDirection.DELETE_LOCAL -> {
                                     syncState.value = WebDavSyncState.Deleting
+                                    localChanged = true
                                     if (isMemoPath(action.path)) {
-                                        fileDataSource.deleteFileIn(MemoDirectoryType.MAIN, action.path)
+                                        markdownStorageDataSource.deleteFileIn(MemoDirectoryType.MAIN, action.path)
                                     } else {
                                         localMediaSyncStore.delete(action.path)
                                     }
@@ -221,6 +226,7 @@ class WebDavSyncRepositoryImpl
 
                                 WebDavSyncDirection.DELETE_REMOTE -> {
                                     syncState.value = WebDavSyncState.Deleting
+                                    remoteChanged = true
                                     client.delete(action.path)
                                 }
 
@@ -244,20 +250,13 @@ class WebDavSyncRepositoryImpl
                         actionOutcomes[action.path] = action.direction to action.reason
                     }
 
-                    val syncedLocalFiles = localFiles()
-                    val syncedRemoteFiles =
-                        try {
-                            remoteFiles(client)
-                        } catch (error: Exception) {
-                            throw IllegalStateException(
-                                "Failed to reload remote WebDAV files after sync: ${error.message ?: "unknown error"}",
-                                error,
-                            )
-                        }
                     persistMetadata(
-                        localFiles = syncedLocalFiles,
-                        remoteFiles = syncedRemoteFiles,
+                        client = client,
+                        localFiles = localFiles,
+                        remoteFiles = remoteFiles,
                         actionOutcomes = actionOutcomes,
+                        localChanged = localChanged,
+                        remoteChanged = remoteChanged,
                     )
 
                     if (failedPaths.isNotEmpty()) {
@@ -289,7 +288,7 @@ class WebDavSyncRepositoryImpl
                             is WebDavSyncResult.Error -> {
                                 syncState.value = WebDavSyncState.Error(result.message, now)
                             }
-                            else -> Unit
+                            WebDavSyncResult.NotConfigured -> Unit
                         }
                         result
                     } catch (error: CancellationException) {
@@ -298,7 +297,7 @@ class WebDavSyncRepositoryImpl
                         val outcomes = when (result) {
                             is WebDavSyncResult.Success -> result.outcomes
                             is WebDavSyncResult.Error -> result.outcomes
-                            else -> emptyList()
+                            WebDavSyncResult.NotConfigured -> emptyList()
                         }
                         val message = "WebDAV sync completed but memo refresh failed: ${error.message ?: "unknown error"}"
                         syncState.value = WebDavSyncState.Error(message, System.currentTimeMillis())
@@ -315,18 +314,40 @@ class WebDavSyncRepositoryImpl
         }
 
         private suspend fun persistMetadata(
+            client: com.lomo.data.webdav.WebDavClient,
             localFiles: Map<String, LocalWebDavFile>,
             remoteFiles: Map<String, RemoteWebDavFile>,
             actionOutcomes: Map<String, Pair<WebDavSyncDirection, WebDavSyncReason>>,
+            localChanged: Boolean,
+            remoteChanged: Boolean,
         ) {
+            val syncedLocalFiles =
+                if (localChanged) {
+                    localFiles()
+                } else {
+                    localFiles
+                }
+            val syncedRemoteFiles =
+                if (remoteChanged) {
+                    try {
+                        remoteFiles(client)
+                    } catch (error: Exception) {
+                        throw IllegalStateException(
+                            "Failed to reload remote WebDAV files after sync: ${error.message ?: "unknown error"}",
+                            error,
+                        )
+                    }
+                } else {
+                    remoteFiles
+                }
             val now = System.currentTimeMillis()
             val entities =
-                localFiles.keys
-                    .intersect(remoteFiles.keys)
+                syncedLocalFiles.keys
+                    .intersect(syncedRemoteFiles.keys)
                     .sorted()
                     .mapNotNull { path ->
-                        val local = localFiles[path] ?: return@mapNotNull null
-                        val remote = remoteFiles[path] ?: return@mapNotNull null
+                        val local = syncedLocalFiles[path] ?: return@mapNotNull null
+                        val remote = syncedRemoteFiles[path] ?: return@mapNotNull null
                         val outcome = actionOutcomes[path]
                         WebDavSyncMetadataEntity(
                             relativePath = path,
@@ -344,7 +365,7 @@ class WebDavSyncRepositoryImpl
 
         private suspend fun localFiles(): Map<String, LocalWebDavFile> {
             val memoFiles =
-                fileDataSource
+                markdownStorageDataSource
                     .listMetadataIn(MemoDirectoryType.MAIN)
                     .filter { it.filename.endsWith(MEMO_SUFFIX) }
                     .associate { metadata ->

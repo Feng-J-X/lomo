@@ -412,6 +412,16 @@ class DirectStorageBackend(
                 ?: emptyList()
         }
 
+    override suspend fun getImageLocation(filename: String): String? =
+        withContext(Dispatchers.IO) {
+            val file = File(rootDir, filename)
+            if (file.exists() && file.isFile && isImageFilename(file.name)) {
+                Uri.fromFile(file).toString()
+            } else {
+                null
+            }
+        }
+
     override suspend fun deleteImage(filename: String) =
         withContext(Dispatchers.IO) {
             try {

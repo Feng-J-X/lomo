@@ -1,5 +1,6 @@
 package com.lomo.data.repository
 
+import android.net.Uri
 import com.lomo.data.source.FileDataSource
 import com.lomo.domain.model.MediaCategory
 import com.lomo.domain.model.MediaEntryId
@@ -7,7 +8,11 @@ import com.lomo.domain.model.StorageLocation
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.impl.annotations.MockK
+import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -25,7 +30,7 @@ class MediaRepositoryImplTest {
     @Before
     fun setUp() {
         MockKAnnotations.init(this)
-        repository = MediaRepositoryImpl(dataSource)
+        repository = MediaRepositoryImpl(workspaceConfigSource = dataSource, mediaStorageDataSource = dataSource)
     }
 
     @Test
@@ -58,6 +63,51 @@ class MediaRepositoryImplTest {
             repository.refreshImageLocations()
 
             assertEquals(emptyMap<MediaEntryId, StorageLocation>(), repository.observeImageLocations().first())
+        }
+
+    @Test
+    fun `importImage updates cached image map incrementally`() =
+        runTest {
+            val source = StorageLocation("content://source/image")
+            val sourceUri = mockk<Uri>()
+            mockkStatic(Uri::class)
+            try {
+                every { Uri.parse(source.raw) } returns sourceUri
+                coEvery { dataSource.saveImage(sourceUri) } returns "new.jpg"
+                coEvery { dataSource.getImageLocation("new.jpg") } returns "content://images/new.jpg"
+
+                val saved = repository.importImage(source)
+
+                assertEquals(StorageLocation("new.jpg"), saved)
+                assertEquals(
+                    mapOf(MediaEntryId("new.jpg") to StorageLocation("content://images/new.jpg")),
+                    repository.observeImageLocations().first(),
+                )
+                coVerify(exactly = 0) { dataSource.listImageFiles() }
+            } finally {
+                unmockkStatic(Uri::class)
+            }
+        }
+
+    @Test
+    fun `removeImage removes cached entry incrementally`() =
+        runTest {
+            coEvery { dataSource.getImageRootFlow() } returns flowOf("content://images")
+            coEvery { dataSource.listImageFiles() } returns
+                listOf(
+                    "keep.jpg" to "content://images/keep.jpg",
+                    "drop.jpg" to "content://images/drop.jpg",
+                )
+            repository.refreshImageLocations()
+
+            repository.removeImage(MediaEntryId("drop.jpg"))
+
+            assertEquals(
+                mapOf(MediaEntryId("keep.jpg") to StorageLocation("content://images/keep.jpg")),
+                repository.observeImageLocations().first(),
+            )
+            coVerify { dataSource.deleteImage("drop.jpg") }
+            coVerify(exactly = 1) { dataSource.listImageFiles() }
         }
 
     @Test

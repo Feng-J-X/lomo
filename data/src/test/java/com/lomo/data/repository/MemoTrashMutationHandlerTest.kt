@@ -31,7 +31,8 @@ class MemoTrashMutationHandlerTest {
         MockKAnnotations.init(this)
         handler =
             MemoTrashMutationHandler(
-                fileDataSource = fileDataSource,
+                markdownStorageDataSource = fileDataSource,
+                mediaStorageDataSource = fileDataSource,
                 dao = memoDao,
                 localFileStateDao = localFileStateDao,
                 textProcessor = MemoTextProcessor(),

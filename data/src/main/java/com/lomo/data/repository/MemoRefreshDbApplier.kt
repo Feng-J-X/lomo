@@ -65,10 +65,14 @@ class MemoRefreshDbApplier
             if (deduplicatedMainMemos.isNotEmpty()) {
                 dao.insertMemos(deduplicatedMainMemos)
                 dao.replaceTagRefsForMemos(deduplicatedMainMemos)
-                deduplicatedMainMemos.forEach {
-                    val tokenized = SearchTokenizer.tokenize(it.content)
-                    dao.insertMemoFts(MemoFtsEntity(it.id, tokenized))
-                }
+                dao.replaceMemoFtsBatch(
+                    deduplicatedMainMemos.map {
+                        MemoFtsEntity(
+                            memoId = it.id,
+                            content = SearchTokenizer.tokenize(it.content),
+                        )
+                    },
+                )
             }
 
             if (filteredTrashMemos.isNotEmpty()) {

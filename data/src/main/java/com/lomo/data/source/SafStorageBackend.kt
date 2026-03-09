@@ -722,6 +722,15 @@ class SafStorageBackend(
             }
         }
 
+    override suspend fun getImageLocation(filename: String): String? =
+        withContext(safIoDispatcher) {
+            val root = getRoot() ?: return@withContext null
+            root.findFile(filename)
+                ?.takeIf { file -> file.isFile }
+                ?.uri
+                ?.toString()
+        }
+
     override suspend fun deleteImage(filename: String) =
         withContext(safIoDispatcher) {
             try {

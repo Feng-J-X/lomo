@@ -8,7 +8,7 @@ import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.source.FileContent
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MarkdownStorageDataSource
 import com.lomo.data.source.MemoDirectoryType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,7 +16,7 @@ import timber.log.Timber
 
 class MemoRefreshEngine
     constructor(
-        private val fileDataSource: FileDataSource,
+        private val markdownStorageDataSource: MarkdownStorageDataSource,
         private val dao: MemoDao,
         private val localFileStateDao: LocalFileStateDao,
         private val parser: MarkdownParser,
@@ -34,8 +34,8 @@ class MemoRefreshEngine
 
                     val syncMetadataMap =
                         localFileStateDao.getAll().associateBy { it.filename to it.isTrash }
-                    val mainFilesMetadata = fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.MAIN)
-                    val trashFilesMetadata = fileDataSource.listMetadataWithIdsIn(MemoDirectoryType.TRASH)
+                    val mainFilesMetadata = markdownStorageDataSource.listMetadataWithIdsIn(MemoDirectoryType.MAIN)
+                    val trashFilesMetadata = markdownStorageDataSource.listMetadataWithIdsIn(MemoDirectoryType.TRASH)
 
                     val plan =
                         refreshPlanner.build(
@@ -65,7 +65,7 @@ class MemoRefreshEngine
             }
 
         private suspend fun refreshTargetFile(targetFilename: String) {
-            val files = fileDataSource.listFilesIn(MemoDirectoryType.MAIN, targetFilename)
+            val files = markdownStorageDataSource.listFilesIn(MemoDirectoryType.MAIN, targetFilename)
             if (files.isEmpty()) return
 
             syncFiles(files, isTrash = false)
@@ -119,12 +119,16 @@ class MemoRefreshEngine
                 if (allMemos.isNotEmpty()) {
                     dao.insertMemos(allMemos)
                     dao.replaceTagRefsForMemos(allMemos)
-                    allMemos.forEach {
-                        val tokenized =
-                            com.lomo.data.util.SearchTokenizer
-                                .tokenize(it.content)
-                        dao.insertMemoFts(MemoFtsEntity(it.id, tokenized))
-                    }
+                    dao.replaceMemoFtsBatch(
+                        allMemos.map {
+                            MemoFtsEntity(
+                                memoId = it.id,
+                                content =
+                                    com.lomo.data.util.SearchTokenizer
+                                        .tokenize(it.content),
+                            )
+                        },
+                    )
                 }
             }
         }

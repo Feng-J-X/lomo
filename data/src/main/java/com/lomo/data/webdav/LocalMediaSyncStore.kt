@@ -5,8 +5,14 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.lomo.data.local.datastore.LomoDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -20,6 +26,27 @@ class LocalMediaSyncStore
         @ApplicationContext private val context: Context,
         private val dataStore: LomoDataStore,
     ) {
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        private val configuredRootsState: StateFlow<List<MediaRoot>?> =
+            combine(
+                dataStore.imageDirectory,
+                dataStore.imageUri,
+                dataStore.voiceDirectory,
+                dataStore.voiceUri,
+            ) { imageDirectory, imageUri, voiceDirectory, voiceUri ->
+                buildConfiguredRoots(
+                    imageDirectory = imageDirectory,
+                    imageUri = imageUri,
+                    voiceDirectory = voiceDirectory,
+                    voiceUri = voiceUri,
+                )
+            }.stateIn(
+                scope = scope,
+                started = SharingStarted.Eagerly,
+                initialValue = null,
+            )
+
         suspend fun configuredCategories(): Set<MediaSyncCategory> =
             configuredRoots().mapTo(linkedSetOf()) { it.category }
 
@@ -102,15 +129,27 @@ class LocalMediaSyncStore
         }
 
         private suspend fun configuredRoots(): List<MediaRoot> {
-            val imageDirectory = dataStore.imageDirectory.first()
-            val imageUri = dataStore.imageUri.first()
-            val voiceDirectory = dataStore.voiceDirectory.first()
-            val voiceUri = dataStore.voiceUri.first()
-            return buildList {
+            configuredRootsState.value?.let { roots ->
+                return roots
+            }
+            return buildConfiguredRoots(
+                imageDirectory = dataStore.imageDirectory.first(),
+                imageUri = dataStore.imageUri.first(),
+                voiceDirectory = dataStore.voiceDirectory.first(),
+                voiceUri = dataStore.voiceUri.first(),
+            )
+        }
+
+        private fun buildConfiguredRoots(
+            imageDirectory: String?,
+            imageUri: String?,
+            voiceDirectory: String?,
+            voiceUri: String?,
+        ): List<MediaRoot> =
+            buildList {
                 resolveRoot(MediaSyncCategory.IMAGE, imageDirectory, imageUri)?.let(::add)
                 resolveRoot(MediaSyncCategory.VOICE, voiceDirectory, voiceUri)?.let(::add)
             }
-        }
 
         private fun resolveRoot(
             category: MediaSyncCategory,

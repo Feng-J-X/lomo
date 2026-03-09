@@ -7,7 +7,8 @@ import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MarkdownStorageDataSource
+import com.lomo.data.source.MediaStorageDataSource
 import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoTextProcessor
 import com.lomo.data.util.SearchTokenizer
@@ -21,7 +22,8 @@ import javax.inject.Inject
 class MemoTrashMutationHandler
     @Inject
     constructor(
-        private val fileDataSource: FileDataSource,
+        private val markdownStorageDataSource: MarkdownStorageDataSource,
+        private val mediaStorageDataSource: MediaStorageDataSource,
         private val dao: MemoDao,
         private val localFileStateDao: LocalFileStateDao,
         private val textProcessor: MemoTextProcessor,
@@ -43,10 +45,10 @@ class MemoTrashMutationHandler
             val cachedUriString = getMainSafUri(filename)
             val currentFileContent =
                 if (cachedUriString != null) {
-                    fileDataSource.readFile(Uri.parse(cachedUriString))
-                        ?: fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
+                    markdownStorageDataSource.readFile(Uri.parse(cachedUriString))
+                        ?: markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 } else {
-                    fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
+                    markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 }
             if (currentFileContent == null) return false
             val lines = currentFileContent.lines().toMutableList()
@@ -59,7 +61,7 @@ class MemoTrashMutationHandler
 
             if (!textProcessor.removeMemoBlock(lines, memo.rawContent, memo.timestamp, memo.id)) return false
 
-            fileDataSource.saveFileIn(
+            markdownStorageDataSource.saveFileIn(
                 directory = MemoDirectoryType.TRASH,
                 filename = filename,
                 content = trashContent,
@@ -69,12 +71,12 @@ class MemoTrashMutationHandler
             val remainingContent = lines.joinToString("\n").trim()
             if (remainingContent.isEmpty()) {
                 val uriToDelete = if (cachedUriString != null) Uri.parse(cachedUriString) else null
-                fileDataSource.deleteFileIn(MemoDirectoryType.MAIN, filename, uriToDelete)
+                markdownStorageDataSource.deleteFileIn(MemoDirectoryType.MAIN, filename, uriToDelete)
                 localFileStateDao.deleteByFilename(filename, false)
             } else {
                 val uriToSave = if (cachedUriString != null) Uri.parse(cachedUriString) else null
                 val savedUri =
-                    fileDataSource.saveFileIn(
+                    markdownStorageDataSource.saveFileIn(
                         directory = MemoDirectoryType.MAIN,
                         filename = filename,
                         content = lines.joinToString("\n"),
@@ -82,13 +84,13 @@ class MemoTrashMutationHandler
                         uri = uriToSave,
                     )
 
-                val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
+                val metadata = markdownStorageDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
                 if (metadata != null) {
                     upsertMainState(filename, metadata.lastModified, savedUri)
                 }
             }
 
-            val trashMetadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
+            val trashMetadata = markdownStorageDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
             if (trashMetadata != null) {
                 upsertTrashState(filename, trashMetadata.lastModified)
             }
@@ -109,7 +111,7 @@ class MemoTrashMutationHandler
 
         suspend fun restoreFromTrashFileOnly(memo: Memo): Boolean {
             val filename = memo.dateKey + ".md"
-            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return false
+            val trashContent = markdownStorageDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return false
             val trashLines = trashContent.lines().toMutableList()
 
             val (start, end) =
@@ -123,7 +125,7 @@ class MemoTrashMutationHandler
             }
 
             val restoredBlock = "\n" + restoredLines.joinToString("\n") + "\n"
-            fileDataSource.saveFileIn(
+            markdownStorageDataSource.saveFileIn(
                 directory = MemoDirectoryType.MAIN,
                 filename = filename,
                 content = restoredBlock,
@@ -132,22 +134,22 @@ class MemoTrashMutationHandler
 
             val remainingTrash = trashLines.joinToString("\n").trim()
             if (remainingTrash.isEmpty()) {
-                fileDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
+                markdownStorageDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
                 localFileStateDao.deleteByFilename(filename, true)
             } else {
-                fileDataSource.saveFileIn(
+                markdownStorageDataSource.saveFileIn(
                     directory = MemoDirectoryType.TRASH,
                     filename = filename,
                     content = trashLines.joinToString("\n"),
                     append = false,
                 )
-                val trashMetadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
+                val trashMetadata = markdownStorageDataSource.getFileMetadataIn(MemoDirectoryType.TRASH, filename)
                 if (trashMetadata != null) {
                     upsertTrashState(filename, trashMetadata.lastModified)
                 }
             }
 
-            val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
+            val metadata = markdownStorageDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
             if (metadata != null) {
                 upsertMainState(filename, metadata.lastModified)
             }
@@ -156,16 +158,16 @@ class MemoTrashMutationHandler
 
         suspend fun deleteFromTrashPermanently(memo: Memo) {
             val filename = memo.dateKey + ".md"
-            val trashContent = fileDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
+            val trashContent = markdownStorageDataSource.readFileIn(MemoDirectoryType.TRASH, filename) ?: return
             val trashLines = trashContent.lines().toMutableList()
 
             if (textProcessor.removeMemoBlock(trashLines, memo.rawContent, memo.timestamp, memo.id)) {
                 val remainingContent = trashLines.joinToString("\n").trim()
                 if (remainingContent.isEmpty()) {
-                    fileDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
+                    markdownStorageDataSource.deleteFileIn(MemoDirectoryType.TRASH, filename)
                     localFileStateDao.deleteByFilename(filename, true)
                 } else {
-                    fileDataSource.saveFileIn(
+                    markdownStorageDataSource.saveFileIn(
                         directory = MemoDirectoryType.TRASH,
                         filename = filename,
                         content = trashLines.joinToString("\n"),
@@ -184,9 +186,9 @@ class MemoTrashMutationHandler
                         val count = dao.countMemosAndTrashWithImage(path, memo.id)
                         if (count == 0) {
                             if (isVoiceFile(path)) {
-                                fileDataSource.deleteVoiceFile(path)
+                                mediaStorageDataSource.deleteVoiceFile(path)
                             } else {
-                                fileDataSource.deleteImage(path)
+                                mediaStorageDataSource.deleteImage(path)
                             }
                         }
                     }

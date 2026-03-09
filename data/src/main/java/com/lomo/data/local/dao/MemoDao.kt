@@ -78,10 +78,20 @@ interface MemoDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMemoFtsInternal(fts: MemoFtsEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMemoFtsBatchInternal(entries: List<MemoFtsEntity>)
+
     @Transaction
     suspend fun insertMemoFts(fts: MemoFtsEntity) {
         deleteMemoFts(fts.memoId)
         insertMemoFtsInternal(fts)
+    }
+
+    @Transaction
+    suspend fun replaceMemoFtsBatch(entries: List<MemoFtsEntity>) {
+        if (entries.isEmpty()) return
+        deleteMemoFtsByIds(entries.map { it.memoId })
+        insertMemoFtsBatchInternal(entries)
     }
 
     @Query("DELETE FROM lomo_fts WHERE memoId = :memoId")

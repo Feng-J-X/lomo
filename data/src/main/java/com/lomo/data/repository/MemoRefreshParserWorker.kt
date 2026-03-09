@@ -5,7 +5,7 @@ import com.lomo.data.local.entity.LocalFileStateEntity
 import com.lomo.data.local.entity.MemoEntity
 import com.lomo.data.local.entity.TrashMemoEntity
 import com.lomo.data.parser.MarkdownParser
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MarkdownStorageDataSource
 import com.lomo.data.source.FileMetadataWithId
 import com.lomo.data.source.MemoDirectoryType
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +24,7 @@ internal data class MemoRefreshParseResult(
 
 class MemoRefreshParserWorker
     constructor(
-        private val fileDataSource: FileDataSource,
+        private val markdownStorageDataSource: MarkdownStorageDataSource,
         private val dao: MemoDao,
         private val parser: MarkdownParser,
     ) {
@@ -120,7 +120,7 @@ class MemoRefreshParserWorker
         private suspend fun parseMainFile(meta: FileMetadataWithId): Pair<List<MemoEntity>, FileMetadataWithId>? {
             val content =
                 withContext(Dispatchers.IO) {
-                    fileDataSource.readFileByDocumentIdIn(
+                    markdownStorageDataSource.readFileByDocumentIdIn(
                         MemoDirectoryType.MAIN,
                         meta.documentId,
                     )
@@ -146,7 +146,7 @@ class MemoRefreshParserWorker
         private suspend fun parseTrashFile(meta: FileMetadataWithId): Pair<List<TrashMemoEntity>, FileMetadataWithId>? {
             val content =
                 withContext(Dispatchers.IO) {
-                    fileDataSource.readFileByDocumentIdIn(
+                    markdownStorageDataSource.readFileByDocumentIdIn(
                         MemoDirectoryType.TRASH,
                         meta.documentId,
                     )

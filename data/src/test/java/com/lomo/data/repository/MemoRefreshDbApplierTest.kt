@@ -99,7 +99,15 @@ class MemoRefreshDbApplierTest {
                     },
                 )
             }
-            coVerify(exactly = 1) { dao.insertMemoFts(match { it.memoId == duplicatedMemoId }) }
+            coVerify(exactly = 1) {
+                dao.replaceMemoFtsBatch(
+                    match { entries ->
+                        entries.size == 1 &&
+                            entries.first().memoId == duplicatedMemoId &&
+                            entries.first().content == "latest content"
+                    },
+                )
+            }
         }
 
     @Test

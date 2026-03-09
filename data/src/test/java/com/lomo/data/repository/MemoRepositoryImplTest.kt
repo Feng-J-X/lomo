@@ -83,7 +83,32 @@ class MemoRepositoryImplTest {
         }
 
     @Test
-    fun `searchMemosList CJK phrase uses bigram AND match query`() =
+    fun `getMemoById maps pinned memo without loading whole list`() =
+        runTest {
+            coEvery {
+                dao.getMemo("memo-1")
+            } returns
+                com.lomo.data.local.entity.MemoEntity(
+                    id = "memo-1",
+                    timestamp = 1L,
+                    updatedAt = 2L,
+                    content = "memo-content",
+                    rawContent = "- 10:00 memo-content",
+                    date = "2026_03_08",
+                    tags = "",
+                    imageUrls = "",
+                )
+            coEvery { dao.getPinnedMemoIds() } returns listOf("memo-1")
+
+            val memo = repository.getMemoById("memo-1")
+
+            assertEquals("memo-1", memo?.id)
+            assertTrue(memo?.isPinned == true)
+            verify(exactly = 0) { dao.getAllMemosFlow() }
+        }
+
+    @Test
+    fun `searchMemosList CJK phrase uses space separated bigram match query`() =
         runTest {
             val captured = slot<String>()
             every { dao.searchMemosByFtsFlow(capture(captured)) } returns flowOf(emptyList())
@@ -91,7 +116,7 @@ class MemoRepositoryImplTest {
 
             repository.searchMemosList("苏格拉底").first()
 
-            assertEquals("苏格* AND 格拉* AND 拉底*", captured.captured)
+            assertEquals("苏格* 格拉* 拉底*", captured.captured)
             verify(exactly = 1) { dao.searchMemosByFtsFlow(any()) }
             verify(exactly = 0) { dao.searchMemosFlow(any()) }
         }
@@ -106,6 +131,32 @@ class MemoRepositoryImplTest {
 
             assertEquals("苏*", captured.captured)
             verify(exactly = 1) { dao.searchMemosByFtsFlow(any()) }
+        }
+
+    @Test
+    fun `searchMemosList latin query uses FTS match query`() =
+        runTest {
+            val captured = slot<String>()
+            every { dao.searchMemosByFtsFlow(capture(captured)) } returns flowOf(emptyList())
+            every { dao.searchMemosFlow(any()) } returns flowOf(emptyList())
+
+            repository.searchMemosList("Socrates 123").first()
+
+            assertEquals("Socrates* 123*", captured.captured)
+            verify(exactly = 1) { dao.searchMemosByFtsFlow(any()) }
+            verify(exactly = 0) { dao.searchMemosFlow(any()) }
+        }
+
+    @Test
+    fun `searchMemosList falls back when query has no searchable tokens`() =
+        runTest {
+            every { dao.searchMemosByFtsFlow(any()) } returns flowOf(emptyList())
+            every { dao.searchMemosFlow("###") } returns flowOf(emptyList())
+
+            repository.searchMemosList("###").first()
+
+            verify(exactly = 0) { dao.searchMemosByFtsFlow(any()) }
+            verify(exactly = 1) { dao.searchMemosFlow("###") }
         }
 
     @Test

@@ -77,6 +77,8 @@ interface ImageStorageBackend {
 
     suspend fun listImageFiles(): List<Pair<String, String>>
 
+    suspend fun getImageLocation(filename: String): String?
+
     suspend fun deleteImage(filename: String)
 }
 

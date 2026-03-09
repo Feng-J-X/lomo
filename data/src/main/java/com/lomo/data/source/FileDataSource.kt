@@ -113,6 +113,8 @@ interface MediaStorageDataSource {
 
     suspend fun listImageFiles(): List<Pair<String, String>>
 
+    suspend fun getImageLocation(filename: String): String?
+
     suspend fun deleteImage(filename: String)
 
     suspend fun createVoiceFile(filename: String): Uri
@@ -444,6 +446,15 @@ class FileDataSourceImpl
                 is SafStorageBackend -> backend.listImageFiles()
                 is DirectStorageBackend -> backend.listImageFiles()
                 else -> emptyList()
+            }
+        }
+
+        override suspend fun getImageLocation(filename: String): String? {
+            val (backend, _) = getImageBackend()
+            return when (backend) {
+                is SafStorageBackend -> backend.getImageLocation(filename)
+                is DirectStorageBackend -> backend.getImageLocation(filename)
+                else -> null
             }
         }
 

@@ -62,6 +62,10 @@ class GitMediaSyncBridge
                     repoRootDir = repoRootDir,
                     categories = categories,
                     previousMetadata = metadata,
+                    localFiles = localFiles,
+                    repoFiles = repoFiles,
+                    localChanged = localChanged,
+                    repoChanged = repoChanged,
                     actionsByPath = actionsByPath,
                 )
 
@@ -72,10 +76,24 @@ class GitMediaSyncBridge
             repoRootDir: File,
             categories: Set<MediaSyncCategory>,
             previousMetadata: Map<String, GitMediaSyncMetadataEntry>,
+            localFiles: Map<String, LocalGitMediaFile>,
+            repoFiles: Map<String, RepoGitMediaFile>,
+            localChanged: Boolean,
+            repoChanged: Boolean,
             actionsByPath: Map<String, GitMediaSyncAction>,
         ) {
-            val refreshedLocalFiles = listLocalFiles()
-            val refreshedRepoFiles = listRepoFiles(repoRootDir, categories)
+            val refreshedLocalFiles =
+                if (localChanged) {
+                    listLocalFiles()
+                } else {
+                    localFiles
+                }
+            val refreshedRepoFiles =
+                if (repoChanged) {
+                    listRepoFiles(repoRootDir, categories)
+                } else {
+                    repoFiles
+                }
             val now = System.currentTimeMillis()
             val entries =
                 (refreshedLocalFiles.keys intersect refreshedRepoFiles.keys)

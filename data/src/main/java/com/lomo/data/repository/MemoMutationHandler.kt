@@ -10,8 +10,7 @@ import com.lomo.data.local.entity.MemoFileOutboxEntity
 import com.lomo.data.local.entity.MemoFileOutboxOp
 import com.lomo.data.local.entity.MemoFtsEntity
 import com.lomo.data.local.entity.TrashMemoEntity
-import com.lomo.data.memo.MemoIdentityPolicy
-import com.lomo.data.source.FileDataSource
+import com.lomo.data.source.MarkdownStorageDataSource
 import com.lomo.data.source.MemoDirectoryType
 import com.lomo.data.util.MemoLocalDateResolver
 import com.lomo.data.util.MemoTextProcessor
@@ -19,9 +18,16 @@ import com.lomo.data.util.SearchTokenizer
 import com.lomo.domain.model.Memo
 import com.lomo.domain.model.StorageFilenameFormats
 import com.lomo.domain.model.StorageTimestampFormats
+import com.lomo.domain.usecase.MemoIdentityPolicy
 import com.lomo.domain.usecase.MemoUpdateAction
 import com.lomo.domain.usecase.ResolveMemoUpdateActionUseCase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -34,7 +40,7 @@ import javax.inject.Inject
 class MemoMutationHandler
     @Inject
     constructor(
-        private val fileDataSource: FileDataSource,
+        private val markdownStorageDataSource: MarkdownStorageDataSource,
         private val dao: MemoDao,
         private val localFileStateDao: LocalFileStateDao,
         private val savePlanFactory: MemoSavePlanFactory,
@@ -48,10 +54,45 @@ class MemoMutationHandler
             const val OUTBOX_CLAIM_STALE_MS = 2 * 60_000L
         }
 
+        private data class StorageFormatSettings(
+            val filenameFormat: String = StorageFilenameFormats.DEFAULT_PATTERN,
+            val timestampFormat: String = StorageTimestampFormats.DEFAULT_PATTERN,
+            val isReady: Boolean = false,
+        )
+
+        private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        private val storageFormatSettings =
+            combine(
+                dataStore.storageFilenameFormat,
+                dataStore.storageTimestampFormat,
+            ) { filenameFormat, timestampFormat ->
+                StorageFormatSettings(
+                    filenameFormat = filenameFormat,
+                    timestampFormat = timestampFormat,
+                    isReady = true,
+                )
+            }.stateIn(
+                scope = settingsScope,
+                started = SharingStarted.Eagerly,
+                initialValue = StorageFormatSettings(),
+            )
+
         data class SaveDbResult(
             val savePlan: MemoSavePlan,
             val outboxId: Long,
         )
+
+        private suspend fun currentStorageFormatSettings(): StorageFormatSettings {
+            val cached = storageFormatSettings.value
+            if (cached.isReady) {
+                return cached
+            }
+            return StorageFormatSettings(
+                filenameFormat = dataStore.storageFilenameFormat.first(),
+                timestampFormat = dataStore.storageTimestampFormat.first(),
+                isReady = true,
+            )
+        }
 
         suspend fun saveMemo(
             content: String,
@@ -131,10 +172,10 @@ class MemoMutationHandler
             val cachedUri = cachedUriString.toPersistedUriOrNull()
             val currentFileContent =
                 if (cachedUri != null) {
-                    fileDataSource.readFile(cachedUri)
-                        ?: fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
+                    markdownStorageDataSource.readFile(cachedUri)
+                        ?: markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 } else {
-                    fileDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
+                    markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, filename)
                 }
 
             if (currentFileContent == null) return false
@@ -151,13 +192,13 @@ class MemoMutationHandler
             if (!success) return false
 
             val savedUri =
-                fileDataSource.saveFileIn(
+                markdownStorageDataSource.saveFileIn(
                     directory = MemoDirectoryType.MAIN,
                     filename = filename,
                     content = lines.joinToString("\n"),
                     append = false,
                 )
-            val metadata = fileDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
+            val metadata = markdownStorageDataSource.getFileMetadataIn(MemoDirectoryType.MAIN, filename)
             if (metadata != null) {
                 upsertMainState(filename, metadata.lastModified, savedUri)
             }
@@ -258,8 +299,9 @@ class MemoMutationHandler
             content: String,
             timestamp: Long,
         ): MemoSavePlan {
-            val filenameFormat = dataStore.storageFilenameFormat.first()
-            val timestampFormat = dataStore.storageTimestampFormat.first()
+            val settings = currentStorageFormatSettings()
+            val filenameFormat = settings.filenameFormat
+            val timestampFormat = settings.timestampFormat
             val zoneId = ZoneId.systemDefault()
             val instant = Instant.ofEpochMilli(timestamp)
             val dateString =
@@ -370,7 +412,7 @@ class MemoMutationHandler
             rawContent: String,
         ): String? {
             val cachedUri = getMainSafUri(filename).toPersistedUriOrNull()
-            return fileDataSource.saveFileIn(
+            return markdownStorageDataSource.saveFileIn(
                 directory = MemoDirectoryType.MAIN,
                 filename = filename,
                 content = "\n$rawContent",
@@ -400,7 +442,7 @@ class MemoMutationHandler
         }
 
         private suspend fun formatMemoTime(timestamp: Long): String {
-            val timestampFormat = dataStore.storageTimestampFormat.first()
+            val timestampFormat = currentStorageFormatSettings().timestampFormat
             return StorageTimestampFormats
                 .formatter(timestampFormat)
                 .withZone(ZoneId.systemDefault())
@@ -410,7 +452,7 @@ class MemoMutationHandler
         private suspend fun getMainSafUri(filename: String): String? = localFileStateDao.getByFilename(filename, false)?.safUri
 
         private suspend fun resolveMainFileLastModified(filename: String): Long =
-            fileDataSource
+            markdownStorageDataSource
                 .getFileMetadataIn(MemoDirectoryType.MAIN, filename)
                 ?.lastModified
                 ?: System.currentTimeMillis()
