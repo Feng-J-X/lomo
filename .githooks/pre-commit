@@ -41,10 +41,36 @@ if [ -z "$hook_gradle_user_home" ]; then
   echo "pre-commit: falling back to repo-local GRADLE_USER_HOME at $hook_gradle_user_home"
 fi
 
+printf -v staged_kotlin_git_filter '%s\n' "${staged_kotlin_files[@]}"
+unstaged_diff="$(git -C "$repo_root" rev-parse --git-path "unstaged-ktlint-git-hook-$$.diff")"
+unstaged_diff_reversed=0
+
+cleanup() {
+  local exit_code=$?
+  trap - EXIT INT TERM
+  if [ "$unstaged_diff_reversed" -eq 1 ] && [ -f "$unstaged_diff" ] && [ -s "$unstaged_diff" ]; then
+    git -C "$repo_root" apply --ignore-whitespace "$unstaged_diff"
+  fi
+  rm -f "$unstaged_diff"
+  exit "$exit_code"
+}
+
+trap cleanup EXIT INT TERM
+
+git -C "$repo_root" diff --binary --color=never > "$unstaged_diff"
+if [ -s "$unstaged_diff" ]; then
+  git -C "$repo_root" apply -R "$unstaged_diff"
+  unstaged_diff_reversed=1
+fi
+
 echo "pre-commit: running $gradlew ktlintFormat on staged Kotlin files..."
 GRADLE_USER_HOME="$hook_gradle_user_home" \
-  "$gradlew" --project-dir "$repo_root" --no-daemon \
-  ktlintFormat -Pktlint.filter="${staged_kotlin_files[*]}"
+  "$gradlew" --project-dir "$repo_root" --no-daemon --quiet \
+  ktlintFormat "-PinternalKtlintGitFilter=$staged_kotlin_git_filter"
 
 # Re-stage files that were modified by formatter.
-git -C "$repo_root" add -- "${staged_kotlin_files[@]}"
+for file in "${staged_kotlin_files[@]}"; do
+  if [ -f "$repo_root/$file" ]; then
+    git -C "$repo_root" add -- "$file"
+  fi
+done
