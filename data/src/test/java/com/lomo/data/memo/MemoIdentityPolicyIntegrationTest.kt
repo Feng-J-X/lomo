@@ -3,6 +3,7 @@ package com.lomo.data.memo
 import com.lomo.data.parser.MarkdownParser
 import com.lomo.data.repository.MemoSavePlanFactory
 import com.lomo.data.util.MemoTextProcessor
+import com.lomo.domain.usecase.MemoIdentityPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime

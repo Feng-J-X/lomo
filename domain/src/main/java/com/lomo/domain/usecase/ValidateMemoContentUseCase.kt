@@ -73,22 +73,6 @@ class ValidateMemoContentUseCase
             validateUpdate(content).throwIfInvalid()
         }
 
-        @Deprecated(
-            message = "Use validateCreate/requireValidForCreate for structured validation signaling.",
-            replaceWith = ReplaceWith("requireValidForCreate(content)"),
-        )
-        fun validateForCreate(content: String) {
-            requireValidForCreate(content)
-        }
-
-        @Deprecated(
-            message = "Use validateUpdate/requireValidForUpdate for structured validation signaling.",
-            replaceWith = ReplaceWith("requireValidForUpdate(content)"),
-        )
-        fun validateForUpdate(content: String) {
-            requireValidForUpdate(content)
-        }
-
         private fun MemoValidationResult.throwIfInvalid() {
             if (this is MemoValidationResult.Invalid) {
                 throw MemoValidationException(this)

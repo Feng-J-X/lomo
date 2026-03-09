@@ -3,14 +3,11 @@ package com.lomo.app.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lomo.domain.repository.AppConfigRepository
-import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.LanShareService
-import com.lomo.domain.repository.SyncPolicyRepository
-import com.lomo.domain.repository.WebDavSyncRepository
-import com.lomo.domain.usecase.GitRemoteUrlUseCase
 import com.lomo.domain.usecase.GitSyncErrorUseCase
+import com.lomo.domain.usecase.GitSyncSettingsUseCase
 import com.lomo.domain.usecase.SwitchRootStorageUseCase
-import com.lomo.domain.usecase.SyncAndRebuildUseCase
+import com.lomo.domain.usecase.WebDavSyncSettingsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,12 +20,9 @@ class SettingsViewModel
     constructor(
         appConfigRepository: AppConfigRepository,
         shareServiceManager: LanShareService,
-        gitSyncRepo: GitSyncRepository,
-        webDavSyncRepository: WebDavSyncRepository,
-        syncPolicyRepository: SyncPolicyRepository,
+        gitSyncSettingsUseCase: GitSyncSettingsUseCase,
+        webDavSyncSettingsUseCase: WebDavSyncSettingsUseCase,
         switchRootStorageUseCase: SwitchRootStorageUseCase,
-        syncAndRebuildUseCase: SyncAndRebuildUseCase,
-        gitRemoteUrlUseCase: GitRemoteUrlUseCase,
         gitSyncErrorUseCase: GitSyncErrorUseCase,
     ) : ViewModel() {
         private val appConfigCoordinator =
@@ -46,19 +40,14 @@ class SettingsViewModel
 
         private val gitCoordinator =
             SettingsGitCoordinator(
-                gitSyncRepo = gitSyncRepo,
-                syncPolicyRepository = syncPolicyRepository,
-                syncAndRebuildUseCase = syncAndRebuildUseCase,
-                gitRemoteUrlUseCase = gitRemoteUrlUseCase,
+                gitSyncSettingsUseCase = gitSyncSettingsUseCase,
                 gitSyncErrorUseCase = gitSyncErrorUseCase,
                 scope = viewModelScope,
             )
 
         private val webDavCoordinator =
             SettingsWebDavCoordinator(
-                webDavSyncRepository = webDavSyncRepository,
-                syncPolicyRepository = syncPolicyRepository,
-                syncAndRebuildUseCase = syncAndRebuildUseCase,
+                webDavSyncSettingsUseCase = webDavSyncSettingsUseCase,
                 scope = viewModelScope,
             )
 

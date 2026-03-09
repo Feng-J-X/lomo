@@ -1,12 +1,14 @@
 package com.lomo.ui.architecture
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.io.File
 
 class UiComponentsLayerBoundaryTest {
     private val moduleRoot = resolveModuleRoot("ui-components")
     private val sourceRoot = moduleRoot.resolve("src/main/java")
+    private val gradleFile = moduleRoot.resolve("build.gradle.kts")
 
     @Test
     fun `ui-components source does not reference data layer package`() {
@@ -16,6 +18,30 @@ class UiComponentsLayerBoundaryTest {
         val offenders = kotlinFiles.filter(::containsDataLayerReference)
         assertTrue(
             "ui-components module must not reference data layer package. Offenders: ${offenders.joinToString { it.path }}",
+            offenders.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `ui-components module does not apply hilt or ksp plugins`() {
+        val text = gradleFile.readText()
+
+        assertFalse(text.contains("libs.plugins.hilt"))
+        assertFalse(text.contains("libs.plugins.ksp"))
+        assertFalse(text.contains("hilt.android"))
+        assertFalse(text.contains("hilt.compiler"))
+    }
+
+    @Test
+    fun `ui-components does not keep app ui state shims`() {
+        val offenders =
+            listOf(
+                moduleRoot.resolve("src/main/java/com/lomo/ui/util/UiState.kt"),
+                moduleRoot.resolve("src/main/java/com/lomo/ui/util/ViewModelExtensions.kt"),
+            ).filter(File::exists)
+
+        assertTrue(
+            "ui-components must not keep ViewModel/UI-state compatibility shims. Offenders: ${offenders.joinToString { it.path }}",
             offenders.isEmpty(),
         )
     }

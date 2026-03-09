@@ -2,13 +2,9 @@ package com.lomo.app.feature.settings
 
 import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.PreferenceDefaults
-import com.lomo.domain.model.SyncBackendType
 import com.lomo.domain.model.SyncEngineState
-import com.lomo.domain.repository.GitSyncRepository
-import com.lomo.domain.repository.SyncPolicyRepository
-import com.lomo.domain.usecase.GitRemoteUrlUseCase
 import com.lomo.domain.usecase.GitSyncErrorUseCase
-import com.lomo.domain.usecase.SyncAndRebuildUseCase
+import com.lomo.domain.usecase.GitSyncSettingsUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,16 +29,13 @@ sealed interface SettingsGitConnectionTestState {
 }
 
 class SettingsGitCoordinator(
-    private val gitSyncRepo: GitSyncRepository,
-    private val syncPolicyRepository: SyncPolicyRepository,
-    private val syncAndRebuildUseCase: SyncAndRebuildUseCase,
-    private val gitRemoteUrlUseCase: GitRemoteUrlUseCase,
+    private val gitSyncSettingsUseCase: GitSyncSettingsUseCase,
     private val gitSyncErrorUseCase: GitSyncErrorUseCase,
     scope: CoroutineScope,
 ) {
     val gitSyncEnabled: StateFlow<Boolean> =
-        gitSyncRepo
-            .isGitSyncEnabled()
+        gitSyncSettingsUseCase
+            .observeGitSyncEnabled()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -50,8 +43,8 @@ class SettingsGitCoordinator(
             )
 
     val gitRemoteUrl: StateFlow<String> =
-        gitSyncRepo
-            .getRemoteUrl()
+        gitSyncSettingsUseCase
+            .observeRemoteUrl()
             .map { it ?: "" }
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -59,8 +52,8 @@ class SettingsGitCoordinator(
     val gitPatConfigured: StateFlow<Boolean> = _gitPatConfigured.asStateFlow()
 
     val gitAuthorName: StateFlow<String> =
-        gitSyncRepo
-            .getAuthorName()
+        gitSyncSettingsUseCase
+            .observeAuthorName()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -68,8 +61,8 @@ class SettingsGitCoordinator(
             )
 
     val gitAuthorEmail: StateFlow<String> =
-        gitSyncRepo
-            .getAuthorEmail()
+        gitSyncSettingsUseCase
+            .observeAuthorEmail()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -77,8 +70,8 @@ class SettingsGitCoordinator(
             )
 
     val gitAutoSyncEnabled: StateFlow<Boolean> =
-        gitSyncRepo
-            .getAutoSyncEnabled()
+        gitSyncSettingsUseCase
+            .observeAutoSyncEnabled()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -86,8 +79,8 @@ class SettingsGitCoordinator(
             )
 
     val gitAutoSyncInterval: StateFlow<String> =
-        gitSyncRepo
-            .getAutoSyncInterval()
+        gitSyncSettingsUseCase
+            .observeAutoSyncInterval()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -95,8 +88,8 @@ class SettingsGitCoordinator(
             )
 
     val gitSyncOnRefreshEnabled: StateFlow<Boolean> =
-        gitSyncRepo
-            .getSyncOnRefreshEnabled()
+        gitSyncSettingsUseCase
+            .observeSyncOnRefreshEnabled()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -104,14 +97,14 @@ class SettingsGitCoordinator(
             )
 
     val gitLastSyncTime: StateFlow<Long> =
-        gitSyncRepo
+        gitSyncSettingsUseCase
             .observeLastSyncTimeMillis()
             .map { value -> value ?: 0L }
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val gitSyncState: StateFlow<SyncEngineState> =
-        gitSyncRepo
-            .syncState()
+        gitSyncSettingsUseCase
+            .observeSyncState()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -126,22 +119,20 @@ class SettingsGitCoordinator(
 
     suspend fun refreshPatConfigured(): String? =
         runWithError("Failed to read Git token state") {
-            _gitPatConfigured.value = gitSyncRepo.getToken() != null
+            _gitPatConfigured.value = gitSyncSettingsUseCase.isTokenConfigured()
         }
 
     suspend fun updateGitSyncEnabled(enabled: Boolean): String? =
         runWithError("Failed to update Git sync setting") {
-            syncPolicyRepository.setRemoteSyncBackend(if (enabled) SyncBackendType.GIT else SyncBackendType.NONE)
-            syncPolicyRepository.applyRemoteSyncPolicy()
+            gitSyncSettingsUseCase.updateGitSyncEnabled(enabled)
         }
 
     suspend fun updateGitRemoteUrl(url: String): String? =
         runWithError("Failed to update Git remote URL") {
-            val normalized = gitRemoteUrlUseCase.normalize(url)
-            gitSyncRepo.setRemoteUrl(normalized)
+            gitSyncSettingsUseCase.updateRemoteUrl(url)
         }
 
-    fun isValidGitRemoteUrl(url: String): Boolean = gitRemoteUrlUseCase.isValid(url)
+    fun isValidGitRemoteUrl(url: String): Boolean = gitSyncSettingsUseCase.isValidRemoteUrl(url)
 
     fun shouldShowGitConflictDialog(message: String): Boolean =
         gitSyncErrorUseCase.classify(message) == GitSyncErrorUseCase.ErrorKind.CONFLICT
@@ -166,96 +157,66 @@ class SettingsGitCoordinator(
 
     suspend fun updateGitPat(token: String): String? =
         runWithError("Failed to update Git token") {
-            gitSyncRepo.setToken(token)
+            gitSyncSettingsUseCase.updateToken(token)
             _gitPatConfigured.value = token.isNotBlank()
         }
 
     suspend fun updateGitAuthorName(name: String): String? =
         runWithError("Failed to update Git author name") {
-            gitSyncRepo.setAuthorInfo(name, gitAuthorEmail.value)
+            gitSyncSettingsUseCase.updateAuthorInfo(name = name, email = gitAuthorEmail.value)
         }
 
     suspend fun updateGitAuthorEmail(email: String): String? =
         runWithError("Failed to update Git author email") {
-            gitSyncRepo.setAuthorInfo(gitAuthorName.value, email)
+            gitSyncSettingsUseCase.updateAuthorInfo(name = gitAuthorName.value, email = email)
         }
 
     suspend fun updateGitAutoSyncEnabled(enabled: Boolean): String? =
         runWithError("Failed to update Git auto-sync setting") {
-            gitSyncRepo.setAutoSyncEnabled(enabled)
-            syncPolicyRepository.applyRemoteSyncPolicy()
+            gitSyncSettingsUseCase.updateAutoSyncEnabled(enabled)
         }
 
     suspend fun updateGitAutoSyncInterval(interval: String): String? =
         runWithError("Failed to update Git auto-sync interval") {
-            gitSyncRepo.setAutoSyncInterval(interval)
-            syncPolicyRepository.applyRemoteSyncPolicy()
+            gitSyncSettingsUseCase.updateAutoSyncInterval(interval)
         }
 
     suspend fun updateGitSyncOnRefresh(enabled: Boolean): String? =
         runWithError("Failed to update Git sync-on-refresh setting") {
-            gitSyncRepo.setSyncOnRefreshEnabled(enabled)
+            gitSyncSettingsUseCase.updateSyncOnRefreshEnabled(enabled)
         }
 
     suspend fun triggerGitSyncNow(): String? =
         runWithError("Failed to run Git sync") {
-            syncAndRebuildUseCase(forceSync = true)
+            gitSyncSettingsUseCase.triggerSyncNow()
         }
 
     suspend fun resolveGitConflictUsingRemote(): String? =
-        try {
-            when (val resetResult = gitSyncRepo.resetLocalBranchToRemote()) {
-                is GitSyncResult.Error -> {
-                    sanitizeUserFacingMessage(
-                        rawMessage = resetResult.message,
-                        fallbackMessage = "Failed to resolve conflict with remote history",
-                    )
-                }
+        when (val result = gitSyncSettingsUseCase.resolveConflictUsingRemote()) {
+            is GitSyncResult.Error ->
+                sanitizeUserFacingMessage(
+                    rawMessage = result.message,
+                    fallbackMessage = "Failed to resolve conflict with remote history",
+                )
 
-                else -> {
-                    runWithError("Failed to resolve conflict with remote history") {
-                        syncAndRebuildUseCase(forceSync = false)
-                    }
-                }
-            }
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (throwable: Throwable) {
-            sanitizeUserFacingMessage(
-                rawMessage = throwable.message,
-                fallbackMessage = "Failed to resolve conflict with remote history",
-            )
+            else -> null
         }
 
     suspend fun resolveGitConflictUsingLocal(): String? =
-        try {
-            when (val result = gitSyncRepo.forcePushLocalToRemote()) {
-                is GitSyncResult.Error -> {
-                    sanitizeUserFacingMessage(
-                        rawMessage = result.message,
-                        fallbackMessage = "Failed to keep local changes during conflict resolution",
-                    )
-                }
+        when (val result = gitSyncSettingsUseCase.resolveConflictUsingLocal()) {
+            is GitSyncResult.Error ->
+                sanitizeUserFacingMessage(
+                    rawMessage = result.message,
+                    fallbackMessage = "Failed to keep local changes during conflict resolution",
+                )
 
-                else -> {
-                    runWithError("Failed to keep local changes during conflict resolution") {
-                        syncAndRebuildUseCase(forceSync = false)
-                    }
-                }
-            }
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (throwable: Throwable) {
-            sanitizeUserFacingMessage(
-                rawMessage = throwable.message,
-                fallbackMessage = "Failed to keep local changes during conflict resolution",
-            )
+            else -> null
         }
 
     suspend fun testGitConnection(): String? =
         try {
             _connectionTestState.value = SettingsGitConnectionTestState.Testing
-            val result = gitSyncRepo.testConnection()
+            val result = gitSyncSettingsUseCase.testConnection()
             _connectionTestState.value =
                 when (result) {
                     is GitSyncResult.Success -> {
@@ -295,7 +256,7 @@ class SettingsGitCoordinator(
     suspend fun resetGitRepository(): String? {
         _resetInProgress.value = true
         return try {
-            when (val result = gitSyncRepo.resetRepository()) {
+            when (val result = gitSyncSettingsUseCase.resetRepository()) {
                 is GitSyncResult.Error -> {
                     sanitizeUserFacingMessage(
                         rawMessage = result.message,
@@ -338,9 +299,8 @@ class SettingsGitCoordinator(
     private fun sanitizeUserFacingMessage(
         rawMessage: String?,
         fallbackMessage: String,
-    ): String =
-        gitSyncErrorUseCase.sanitizeUserFacingMessage(
-            rawMessage = rawMessage,
-            fallbackMessage = fallbackMessage,
-        )
+    ): String {
+        val normalized = rawMessage?.lineSequence()?.firstOrNull()?.trim().orEmpty()
+        return normalized.takeIf { it.isNotBlank() && !it.contains("Exception") } ?: fallbackMessage
+    }
 }

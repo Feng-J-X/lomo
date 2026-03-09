@@ -1,9 +1,6 @@
-package com.lomo.data.share
+package com.lomo.domain.model
 
-import com.lomo.domain.model.ShareTransferError
-import com.lomo.domain.model.ShareTransferErrorCode
-
-internal object ShareTransferErrorPolicy {
+object ShareTransferErrorPolicy {
     fun pairingRequiredBeforeSend(): ShareTransferError = ShareTransferError(code = ShareTransferErrorCode.PAIRING_REQUIRED)
 
     fun missingAttachments(missingCount: Int): ShareTransferError =

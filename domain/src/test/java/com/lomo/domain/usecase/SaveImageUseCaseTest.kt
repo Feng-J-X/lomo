@@ -2,27 +2,17 @@ package com.lomo.domain.usecase
 
 import com.lomo.domain.model.StorageLocation
 import com.lomo.domain.repository.MediaRepository
-import com.lomo.domain.testutil.invokeSuspendViaReflection
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
-import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.coroutines.Continuation
 
 class SaveImageUseCaseTest {
     private val mediaRepository: MediaRepository = mockk()
     private val useCase = SaveImageUseCase(mediaRepository)
-    private val legacyInvokeMethod =
-        SaveImageUseCase::class.java.getDeclaredMethod(
-            "invoke",
-            String::class.java,
-            Continuation::class.java,
-        )
 
     @Test
     fun `saveWithCacheSyncStatus returns success when both save and cache sync succeed`() =
@@ -30,47 +20,15 @@ class SaveImageUseCaseTest {
             val source = StorageLocation("uri")
             val saved = StorageLocation("/images/a.jpg")
             coEvery { mediaRepository.importImage(source) } returns saved
-            coEvery { mediaRepository.refreshImageLocations() } returns Unit
 
             val result = useCase.saveWithCacheSyncStatus(source)
 
             assertEquals(SaveImageResult.SavedAndCacheSynced(saved), result)
+            coVerify(exactly = 0) { mediaRepository.refreshImageLocations() }
         }
 
     @Test
-    fun `saveWithCacheSyncStatus returns partial result when cache sync fails`() =
-        runTest {
-            val source = StorageLocation("uri")
-            val saved = StorageLocation("/images/a.jpg")
-            val failure = IllegalStateException("cache sync failed")
-            coEvery { mediaRepository.importImage(source) } returns saved
-            coEvery { mediaRepository.refreshImageLocations() } throws failure
-
-            val result = useCase.saveWithCacheSyncStatus(source)
-
-            assertTrue(result is SaveImageResult.SavedButCacheSyncFailed)
-            val partial = result as SaveImageResult.SavedButCacheSyncFailed
-            assertEquals(saved, partial.location)
-            assertSame(failure, partial.cause)
-        }
-
-    @Test
-    fun `legacy invoke rethrows cache sync failure for compatibility`() =
-        runTest {
-            val source = StorageLocation("uri")
-            val saved = StorageLocation("/images/a.jpg")
-            val failure = IllegalStateException("cache sync failed")
-            coEvery { mediaRepository.importImage(source) } returns saved
-            coEvery { mediaRepository.refreshImageLocations() } throws failure
-
-            val thrown = runCatching { invokeSuspendViaReflection(legacyInvokeMethod, useCase, "uri") }.exceptionOrNull()
-
-            assertTrue(thrown is IllegalStateException)
-            assertEquals(failure.message, thrown?.message)
-        }
-
-    @Test
-    fun `saveWithCacheSyncStatus rethrows save failure and skips cache sync`() =
+    fun `saveWithCacheSyncStatus rethrows import failure and skips full refresh`() =
         runTest {
             val source = StorageLocation("uri")
             val failure = IllegalArgumentException("invalid source")
@@ -80,19 +38,5 @@ class SaveImageUseCaseTest {
 
             assertSame(failure, thrown)
             coVerify(exactly = 0) { mediaRepository.refreshImageLocations() }
-        }
-
-    @Test
-    fun `saveWithCacheSyncStatus rethrows cancellation from cache sync`() =
-        runTest {
-            val source = StorageLocation("uri")
-            val saved = StorageLocation("/images/a.jpg")
-            val cancellation = CancellationException("cancelled")
-            coEvery { mediaRepository.importImage(source) } returns saved
-            coEvery { mediaRepository.refreshImageLocations() } throws cancellation
-
-            val thrown = runCatching { useCase.saveWithCacheSyncStatus(source) }.exceptionOrNull()
-
-            assertSame(cancellation, thrown)
         }
 }

@@ -21,11 +21,31 @@ class DataLayerBoundaryTest {
         )
     }
 
+    @Test
+    fun `data layer does not reference ui frameworks`() {
+        val kotlinFiles = sourceRoot.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+        assertTrue("No Kotlin sources found under data/src/main/java", kotlinFiles.isNotEmpty())
+
+        val offenders = kotlinFiles.filter(::containsUiLayerReference)
+
+        assertTrue(
+            "Data layer must not reference UI packages. Offenders: ${offenders.joinToString { it.path }}",
+            offenders.isEmpty(),
+        )
+    }
+
     private fun containsAppLayerReference(file: File): Boolean {
         val content = file.readText()
         if (APP_IMPORT_PATTERN.containsMatchIn(content)) return true
         val nonImportOrPackageContent = stripImportAndPackageLines(content)
         return APP_FQCN_PATTERN.containsMatchIn(nonImportOrPackageContent)
+    }
+
+    private fun containsUiLayerReference(file: File): Boolean {
+        val content = file.readText()
+        if (UI_IMPORT_PATTERN.containsMatchIn(content)) return true
+        val nonImportOrPackageContent = stripImportAndPackageLines(content)
+        return UI_FQCN_PATTERN.containsMatchIn(nonImportOrPackageContent)
     }
 
     private fun stripImportAndPackageLines(content: String): String =
@@ -54,6 +74,8 @@ class DataLayerBoundaryTest {
     private companion object {
         val APP_IMPORT_PATTERN = Regex("""(?m)^\s*import\s+com\.lomo\.app(?:\.|$)""")
         val APP_FQCN_PATTERN = Regex("""\bcom\.lomo\.app\.[A-Za-z_]\w*""")
+        val UI_IMPORT_PATTERN = Regex("""(?m)^\s*import\s+(?:com\.lomo\.ui(?:\.|$)|androidx\.compose(?:\.|$)|androidx\.lifecycle\.ViewModel\b)""")
+        val UI_FQCN_PATTERN = Regex("""\b(?:com\.lomo\.ui\.[A-Za-z_]\w*|androidx\.compose\.[A-Za-z_]\w*|androidx\.lifecycle\.ViewModel\b)""")
         val IMPORT_OR_PACKAGE_LINE_PATTERN = Regex("""^\s*(import|package)\s+""")
     }
 }

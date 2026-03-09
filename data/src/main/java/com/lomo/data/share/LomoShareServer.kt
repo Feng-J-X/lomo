@@ -2,6 +2,7 @@ package com.lomo.data.share
 
 import com.lomo.domain.model.ShareAttachmentInfo
 import com.lomo.domain.model.SharePayload
+import com.lomo.domain.model.ShareTransferLimits
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode

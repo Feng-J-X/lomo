@@ -4,17 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lomo.app.feature.common.toUserMessage
 import com.lomo.app.repository.AppWidgetRepository
-import com.lomo.domain.model.MediaEntryId
 import com.lomo.domain.model.Memo
 import com.lomo.domain.model.StorageLocation
-import com.lomo.domain.repository.MediaRepository
-import com.lomo.domain.repository.MemoRepository
-import com.lomo.domain.usecase.InitializeWorkspaceUseCase
+import com.lomo.domain.usecase.CreateMemoUseCase
+import com.lomo.domain.usecase.DiscardMemoDraftAttachmentsUseCase
 import com.lomo.domain.usecase.SaveImageResult
 import com.lomo.domain.usecase.SaveImageUseCase
-import com.lomo.domain.usecase.ValidateMemoContentUseCase
+import com.lomo.domain.usecase.UpdateMemoContentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,11 +22,10 @@ import javax.inject.Inject
 class MemoEditorViewModel
     @Inject
     constructor(
-        private val repository: MemoRepository,
-        private val initializeWorkspaceUseCase: InitializeWorkspaceUseCase,
-        private val validator: ValidateMemoContentUseCase,
+        private val createMemoUseCase: CreateMemoUseCase,
+        private val updateMemoContentUseCase: UpdateMemoContentUseCase,
         private val saveImageUseCase: SaveImageUseCase,
-        private val mediaRepository: MediaRepository,
+        private val discardMemoDraftAttachmentsUseCase: DiscardMemoDraftAttachmentsUseCase,
         private val appWidgetRepository: AppWidgetRepository,
     ) : ViewModel() {
         private val trackedImageFilenames = mutableSetOf<String>()
@@ -43,12 +39,7 @@ class MemoEditorViewModel
         ) {
             viewModelScope.launch {
                 try {
-                    if (initializeWorkspaceUseCase.currentRootLocation() == null) {
-                        _errorMessage.value = "Please select a folder first"
-                        return@launch
-                    }
-                    validator.requireValidForCreate(content)
-                    repository.saveMemo(content, System.currentTimeMillis())
+                    createMemoUseCase(content = content, timestampMillis = System.currentTimeMillis())
                     onSuccess?.invoke()
                     clearTrackedImages()
                     viewModelScope.launch(Dispatchers.IO) {
@@ -68,8 +59,7 @@ class MemoEditorViewModel
         ) {
             viewModelScope.launch {
                 try {
-                    validator.requireValidForUpdate(newContent)
-                    repository.updateMemo(memo, newContent)
+                    updateMemoContentUseCase(memo, newContent)
                     appWidgetRepository.updateAllWidgets()
                     clearTrackedImages()
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -111,7 +101,9 @@ class MemoEditorViewModel
         fun discardInputs() {
             viewModelScope.launch {
                 try {
-                    discardTrackedImages()
+                    val toDelete = trackedImageFilenames.toList()
+                    trackedImageFilenames.clear()
+                    discardMemoDraftAttachmentsUseCase(toDelete)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -126,28 +118,5 @@ class MemoEditorViewModel
 
         private fun clearTrackedImages() {
             trackedImageFilenames.clear()
-        }
-
-        private suspend fun discardTrackedImages() {
-            val toDelete = trackedImageFilenames.toList()
-            trackedImageFilenames.clear()
-
-            toDelete.forEach { filename ->
-                try {
-                    mediaRepository.removeImage(MediaEntryId(filename))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    // Best-effort cleanup.
-                }
-            }
-
-            try {
-                mediaRepository.refreshImageLocations()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                // Best-effort refresh.
-            }
         }
     }

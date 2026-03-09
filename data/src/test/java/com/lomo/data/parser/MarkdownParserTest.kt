@@ -1,7 +1,7 @@
 package com.lomo.data.parser
 
-import com.lomo.data.memo.MemoIdentityPolicy
 import com.lomo.data.util.MemoTextProcessor
+import com.lomo.domain.usecase.MemoIdentityPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before

@@ -1,21 +1,18 @@
 package com.lomo.app.feature.settings
 
 import com.lomo.domain.model.GitSyncResult
-import com.lomo.domain.model.WebDavProvider
-import com.lomo.domain.model.WebDavSyncResult
-import com.lomo.domain.model.WebDavSyncState
 import com.lomo.domain.model.ShareCardStyle
 import com.lomo.domain.model.SyncEngineState
 import com.lomo.domain.model.ThemeMode
+import com.lomo.domain.model.WebDavProvider
+import com.lomo.domain.model.WebDavSyncResult
+import com.lomo.domain.model.WebDavSyncState
 import com.lomo.domain.repository.AppConfigRepository
-import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.LanShareService
-import com.lomo.domain.repository.SyncPolicyRepository
-import com.lomo.domain.repository.WebDavSyncRepository
-import com.lomo.domain.usecase.GitRemoteUrlUseCase
 import com.lomo.domain.usecase.GitSyncErrorUseCase
+import com.lomo.domain.usecase.GitSyncSettingsUseCase
 import com.lomo.domain.usecase.SwitchRootStorageUseCase
-import com.lomo.domain.usecase.SyncAndRebuildUseCase
+import com.lomo.domain.usecase.WebDavSyncSettingsUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -40,12 +37,9 @@ class SettingsViewModelTest {
 
     private lateinit var appConfigRepository: AppConfigRepository
     private lateinit var shareServiceManager: LanShareService
-    private lateinit var gitSyncRepo: GitSyncRepository
-    private lateinit var syncPolicyRepository: SyncPolicyRepository
-    private lateinit var webDavSyncRepository: WebDavSyncRepository
+    private lateinit var gitSyncSettingsUseCase: GitSyncSettingsUseCase
+    private lateinit var webDavSyncSettingsUseCase: WebDavSyncSettingsUseCase
     private lateinit var switchRootStorageUseCase: SwitchRootStorageUseCase
-    private lateinit var syncAndRebuildUseCase: SyncAndRebuildUseCase
-    private lateinit var gitRemoteUrlUseCase: GitRemoteUrlUseCase
     private lateinit var gitSyncErrorUseCase: GitSyncErrorUseCase
 
     @Before
@@ -54,12 +48,9 @@ class SettingsViewModelTest {
 
         appConfigRepository = mockk(relaxed = true)
         shareServiceManager = mockk(relaxed = true)
-        gitSyncRepo = mockk(relaxed = true)
-        syncPolicyRepository = mockk(relaxed = true)
-        webDavSyncRepository = mockk(relaxed = true)
+        gitSyncSettingsUseCase = mockk(relaxed = true)
+        webDavSyncSettingsUseCase = mockk(relaxed = true)
         switchRootStorageUseCase = mockk(relaxed = true)
-        syncAndRebuildUseCase = mockk(relaxed = true)
-        gitRemoteUrlUseCase = GitRemoteUrlUseCase()
         gitSyncErrorUseCase = GitSyncErrorUseCase()
 
         every { appConfigRepository.observeRootDisplayName() } returns flowOf("")
@@ -84,34 +75,35 @@ class SettingsViewModelTest {
         every { shareServiceManager.lanSharePairingConfigured } returns flowOf(false)
         every { shareServiceManager.lanShareDeviceName } returns flowOf("Local")
 
-        every { gitSyncRepo.isGitSyncEnabled() } returns flowOf(false)
-        every { gitSyncRepo.getRemoteUrl() } returns flowOf("")
-        every { gitSyncRepo.getAuthorName() } returns flowOf("Lomo")
-        every { gitSyncRepo.getAuthorEmail() } returns flowOf("lomo@example.com")
-        every { gitSyncRepo.getAutoSyncEnabled() } returns flowOf(false)
-        every { gitSyncRepo.getAutoSyncInterval() } returns flowOf("15m")
-        every { gitSyncRepo.getSyncOnRefreshEnabled() } returns flowOf(false)
-        every { gitSyncRepo.observeLastSyncTimeMillis() } returns flowOf(null)
-        every { gitSyncRepo.syncState() } returns flowOf(SyncEngineState.Idle)
+        every { gitSyncSettingsUseCase.observeGitSyncEnabled() } returns flowOf(false)
+        every { gitSyncSettingsUseCase.observeRemoteUrl() } returns flowOf("")
+        every { gitSyncSettingsUseCase.observeAuthorName() } returns flowOf("Lomo")
+        every { gitSyncSettingsUseCase.observeAuthorEmail() } returns flowOf("lomo@example.com")
+        every { gitSyncSettingsUseCase.observeAutoSyncEnabled() } returns flowOf(false)
+        every { gitSyncSettingsUseCase.observeAutoSyncInterval() } returns flowOf("15m")
+        every { gitSyncSettingsUseCase.observeSyncOnRefreshEnabled() } returns flowOf(false)
+        every { gitSyncSettingsUseCase.observeLastSyncTimeMillis() } returns flowOf(null)
+        every { gitSyncSettingsUseCase.observeSyncState() } returns flowOf(SyncEngineState.Idle)
+        every { gitSyncSettingsUseCase.isValidRemoteUrl(any()) } returns true
 
-        every { webDavSyncRepository.isWebDavSyncEnabled() } returns flowOf(false)
-        every { webDavSyncRepository.getProvider() } returns flowOf(WebDavProvider.NUTSTORE)
-        every { webDavSyncRepository.getBaseUrl() } returns flowOf("")
-        every { webDavSyncRepository.getEndpointUrl() } returns flowOf("")
-        every { webDavSyncRepository.getUsername() } returns flowOf("")
-        every { webDavSyncRepository.getAutoSyncEnabled() } returns flowOf(false)
-        every { webDavSyncRepository.getAutoSyncInterval() } returns flowOf("1h")
-        every { webDavSyncRepository.getSyncOnRefreshEnabled() } returns flowOf(false)
-        every { webDavSyncRepository.observeLastSyncTimeMillis() } returns flowOf(null)
-        every { webDavSyncRepository.syncState() } returns flowOf(WebDavSyncState.Idle)
+        every { webDavSyncSettingsUseCase.observeWebDavSyncEnabled() } returns flowOf(false)
+        every { webDavSyncSettingsUseCase.observeProvider() } returns flowOf(WebDavProvider.NUTSTORE)
+        every { webDavSyncSettingsUseCase.observeBaseUrl() } returns flowOf("")
+        every { webDavSyncSettingsUseCase.observeEndpointUrl() } returns flowOf("")
+        every { webDavSyncSettingsUseCase.observeUsername() } returns flowOf("")
+        every { webDavSyncSettingsUseCase.observeAutoSyncEnabled() } returns flowOf(false)
+        every { webDavSyncSettingsUseCase.observeAutoSyncInterval() } returns flowOf("1h")
+        every { webDavSyncSettingsUseCase.observeSyncOnRefreshEnabled() } returns flowOf(false)
+        every { webDavSyncSettingsUseCase.observeLastSyncTimeMillis() } returns flowOf(null)
+        every { webDavSyncSettingsUseCase.observeSyncState() } returns flowOf(WebDavSyncState.Idle)
 
-        coEvery { webDavSyncRepository.isPasswordConfigured() } returns false
-        coEvery { webDavSyncRepository.testConnection() } returns WebDavSyncResult.Success("ok")
+        coEvery { webDavSyncSettingsUseCase.isPasswordConfigured() } returns false
+        coEvery { webDavSyncSettingsUseCase.testConnection() } returns WebDavSyncResult.Success("ok")
 
-        coEvery { gitSyncRepo.getToken() } returns null
-        coEvery { gitSyncRepo.testConnection() } returns GitSyncResult.Success("ok")
-        coEvery { gitSyncRepo.resetRepository() } returns GitSyncResult.Success("ok")
-        coEvery { syncAndRebuildUseCase.invoke(forceSync = true) } returns Unit
+        coEvery { gitSyncSettingsUseCase.isTokenConfigured() } returns false
+        coEvery { gitSyncSettingsUseCase.testConnection() } returns GitSyncResult.Success("ok")
+        coEvery { gitSyncSettingsUseCase.resetRepository() } returns GitSyncResult.Success("ok")
+        coEvery { gitSyncSettingsUseCase.triggerSyncNow() } returns Unit
     }
 
     @After
@@ -122,7 +114,7 @@ class SettingsViewModelTest {
     @Test
     fun `triggerGitSyncNow exposes operationError on failure`() =
         runTest {
-            coEvery { syncAndRebuildUseCase.invoke(forceSync = true) } throws IllegalStateException("sync failed")
+            coEvery { gitSyncSettingsUseCase.triggerSyncNow() } throws IllegalStateException("sync failed")
             val viewModel = createViewModel()
 
             viewModel.gitFeature.triggerGitSyncNow()
@@ -134,7 +126,7 @@ class SettingsViewModelTest {
     @Test
     fun `testGitConnection exposes error state and operationError on exception`() =
         runTest {
-            coEvery { gitSyncRepo.testConnection() } throws IllegalStateException("network down")
+            coEvery { gitSyncSettingsUseCase.testConnection() } throws IllegalStateException("network down")
             val viewModel = createViewModel()
 
             viewModel.gitFeature.testGitConnection()
@@ -150,7 +142,7 @@ class SettingsViewModelTest {
     @Test
     fun `testGitConnection sanitizes technical error result message`() =
         runTest {
-            coEvery { gitSyncRepo.testConnection() } returns
+            coEvery { gitSyncSettingsUseCase.testConnection() } returns
                 GitSyncResult.Error("java.net.SocketTimeoutException: timeout\n\tat okhttp3.RealCall.execute")
             val viewModel = createViewModel()
 
@@ -230,12 +222,9 @@ class SettingsViewModelTest {
         SettingsViewModel(
             appConfigRepository = appConfigRepository,
             shareServiceManager = shareServiceManager,
-            gitSyncRepo = gitSyncRepo,
-            webDavSyncRepository = webDavSyncRepository,
-            syncPolicyRepository = syncPolicyRepository,
+            gitSyncSettingsUseCase = gitSyncSettingsUseCase,
+            webDavSyncSettingsUseCase = webDavSyncSettingsUseCase,
             switchRootStorageUseCase = switchRootStorageUseCase,
-            syncAndRebuildUseCase = syncAndRebuildUseCase,
-            gitRemoteUrlUseCase = gitRemoteUrlUseCase,
             gitSyncErrorUseCase = gitSyncErrorUseCase,
         )
 }

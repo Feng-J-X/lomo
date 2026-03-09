@@ -52,12 +52,12 @@ class ValidateMemoContentUseCaseTest {
     }
 
     @Test
-    fun `legacy validateForUpdate remains exception-compatible`() {
+    fun `requireValidForUpdate remains exception-compatible`() {
         val content = "a".repeat(MemoConstraints.MAX_MEMO_LENGTH + 1)
 
         val exception =
             assertThrows(IllegalArgumentException::class.java) {
-                validator.validateForUpdate(content)
+                validator.requireValidForUpdate(content)
             }
 
         assertEquals(ValidateMemoContentUseCase.lengthExceededMessage(), exception.message)

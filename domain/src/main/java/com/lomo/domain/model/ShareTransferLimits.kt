@@ -1,6 +1,6 @@
-package com.lomo.data.share
+package com.lomo.domain.model
 
-internal object ShareTransferLimits {
+object ShareTransferLimits {
     const val MAX_ATTACHMENTS = 20
     const val MAX_ATTACHMENT_SIZE_BYTES = 100L * 1024L * 1024L
     const val MAX_TOTAL_ATTACHMENT_SIZE_BYTES = 100L * 1024L * 1024L

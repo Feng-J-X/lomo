@@ -37,6 +37,14 @@ interface MemoRepository {
      */
     suspend fun getMemoCount(): Int = getMemoCountFlow().first()
 
+    /**
+     * Returns one memo by id without forcing callers to reload the whole list.
+     *
+     * Default implementation preserves compatibility for repositories that only expose
+     * flow-based list observation, but concrete implementations should override for efficiency.
+     */
+    suspend fun getMemoById(id: String): Memo? = getAllMemosList().first().firstOrNull { memo -> memo.id == id }
+
     suspend fun refreshMemos()
 
     fun isSyncing(): Flow<Boolean>

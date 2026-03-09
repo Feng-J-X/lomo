@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.lomo.domain.model.DiscoveredDevice
 import com.lomo.domain.model.ShareAttachmentInfo
+import com.lomo.domain.model.ShareTransferLimits
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation

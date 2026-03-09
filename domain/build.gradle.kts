@@ -1,26 +1,11 @@
 plugins {
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.jetbrainsKotlinJvm)
 }
 
 val jvmVersion = 25
 
-android {
-    namespace = "com.lomo.domain"
-    compileSdk = 36
-
-    defaultConfig {
-        minSdk = 26
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.toVersion(jvmVersion)
-        targetCompatibility = JavaVersion.toVersion(jvmVersion)
-    }
-}
-
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.coroutines.get()}")
-    implementation(libs.javax.inject)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

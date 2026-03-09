@@ -26,6 +26,8 @@ import com.lomo.data.repository.SettingsRepositoryImpl
 import com.lomo.data.repository.ShareImageRepositoryImpl
 import com.lomo.data.repository.SyncPolicyRepositoryImpl
 import com.lomo.data.repository.WorkspaceTransitionRepositoryImpl
+import com.lomo.data.source.FileDataSourceImpl
+import com.lomo.domain.usecase.MemoIdentityPolicy
 import com.lomo.domain.repository.AppConfigRepository
 import com.lomo.domain.repository.AppRuntimeInfoRepository
 import com.lomo.domain.repository.AppUpdateRepository
@@ -99,51 +101,18 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideFileDataSource(
-        @ApplicationContext context: Context,
-        dataStore: com.lomo.data.local.datastore.LomoDataStore,
-    ): com.lomo.data.source.FileDataSource =
-        com.lomo.data.source
-            .FileDataSourceImpl(context, dataStore)
-
-    @Provides
-    @Singleton
-    fun provideWorkspaceConfigSource(dataSource: com.lomo.data.source.FileDataSource): com.lomo.data.source.WorkspaceConfigSource =
+    fun provideWorkspaceConfigSource(dataSource: FileDataSourceImpl): com.lomo.data.source.WorkspaceConfigSource =
         dataSource
 
     @Provides
     @Singleton
-    fun provideMarkdownStorageDataSource(dataSource: com.lomo.data.source.FileDataSource): com.lomo.data.source.MarkdownStorageDataSource =
+    fun provideMarkdownStorageDataSource(dataSource: FileDataSourceImpl): com.lomo.data.source.MarkdownStorageDataSource =
         dataSource
 
     @Provides
     @Singleton
-    fun provideMediaStorageDataSource(dataSource: com.lomo.data.source.FileDataSource): com.lomo.data.source.MediaStorageDataSource =
+    fun provideMediaStorageDataSource(dataSource: FileDataSourceImpl): com.lomo.data.source.MediaStorageDataSource =
         dataSource
-
-    @Provides
-    @Singleton
-    fun provideMemoRepositoryImpl(
-        dao: MemoDao,
-        synchronizer: com.lomo.data.repository.MemoSynchronizer,
-        resolveMemoUpdateActionUseCase: com.lomo.domain.usecase.ResolveMemoUpdateActionUseCase,
-    ): MemoRepositoryImpl =
-        MemoRepositoryImpl(
-            dao,
-            synchronizer,
-            resolveMemoUpdateActionUseCase,
-        )
-
-    @Provides
-    @Singleton
-    fun provideSettingsRepositoryImpl(
-        dataSource: com.lomo.data.source.WorkspaceConfigSource,
-        dataStore: com.lomo.data.local.datastore.LomoDataStore,
-    ): SettingsRepositoryImpl =
-        SettingsRepositoryImpl(
-            dataSource,
-            dataStore,
-        )
 
     @Provides
     @Singleton
@@ -154,24 +123,21 @@ object DataModule {
 
     @Provides
     @Singleton
-    fun provideMediaRepositoryImpl(dataSource: com.lomo.data.source.FileDataSource): MediaRepositoryImpl =
-        MediaRepositoryImpl(
-            dataSource,
-        )
-
-    @Provides
-    @Singleton
     fun provideMemoRefreshPlanner(): MemoRefreshPlanner = MemoRefreshPlanner()
 
     @Provides
     @Singleton
+    fun provideMemoIdentityPolicy(): MemoIdentityPolicy = MemoIdentityPolicy()
+
+    @Provides
+    @Singleton
     fun provideMemoRefreshParserWorker(
-        fileDataSource: com.lomo.data.source.FileDataSource,
+        markdownStorageDataSource: com.lomo.data.source.MarkdownStorageDataSource,
         dao: MemoDao,
         parser: com.lomo.data.parser.MarkdownParser,
     ): MemoRefreshParserWorker =
         MemoRefreshParserWorker(
-            fileDataSource = fileDataSource,
+            markdownStorageDataSource = markdownStorageDataSource,
             dao = dao,
             parser = parser,
         )
@@ -196,7 +162,7 @@ object DataModule {
     @Provides
     @Singleton
     fun provideMemoRefreshEngine(
-        fileDataSource: com.lomo.data.source.FileDataSource,
+        markdownStorageDataSource: com.lomo.data.source.MarkdownStorageDataSource,
         dao: MemoDao,
         localFileStateDao: LocalFileStateDao,
         parser: com.lomo.data.parser.MarkdownParser,
@@ -205,7 +171,7 @@ object DataModule {
         dbApplier: MemoRefreshDbApplier,
     ): MemoRefreshEngine =
         MemoRefreshEngine(
-            fileDataSource = fileDataSource,
+            markdownStorageDataSource = markdownStorageDataSource,
             dao = dao,
             localFileStateDao = localFileStateDao,
             parser = parser,
@@ -308,7 +274,7 @@ object DataModule {
         credentialStore: com.lomo.data.webdav.WebDavCredentialStore,
         endpointResolver: com.lomo.data.webdav.WebDavEndpointResolver,
         clientFactory: com.lomo.data.webdav.WebDavClientFactory,
-        fileDataSource: com.lomo.data.source.FileDataSource,
+        markdownStorageDataSource: com.lomo.data.source.MarkdownStorageDataSource,
         localMediaSyncStore: com.lomo.data.webdav.LocalMediaSyncStore,
         metadataDao: com.lomo.data.local.dao.WebDavSyncMetadataDao,
         memoSynchronizer: com.lomo.data.repository.MemoSynchronizer,
@@ -319,7 +285,7 @@ object DataModule {
             credentialStore = credentialStore,
             endpointResolver = endpointResolver,
             clientFactory = clientFactory,
-            fileDataSource = fileDataSource,
+            markdownStorageDataSource = markdownStorageDataSource,
             localMediaSyncStore = localMediaSyncStore,
             metadataDao = metadataDao,
             memoSynchronizer = memoSynchronizer,

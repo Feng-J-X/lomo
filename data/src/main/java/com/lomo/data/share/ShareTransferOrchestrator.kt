@@ -8,6 +8,8 @@ import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.domain.model.DiscoveredDevice
 import com.lomo.domain.model.ShareAttachmentInfo
 import com.lomo.domain.model.ShareTransferError
+import com.lomo.domain.model.ShareTransferErrorPolicy
+import com.lomo.domain.model.ShareTransferLimits
 import com.lomo.domain.model.ShareTransferState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers

@@ -1,13 +1,10 @@
 package com.lomo.app.feature.settings
 
 import com.lomo.domain.model.PreferenceDefaults
-import com.lomo.domain.model.SyncBackendType
 import com.lomo.domain.model.WebDavProvider
 import com.lomo.domain.model.WebDavSyncResult
 import com.lomo.domain.model.WebDavSyncState
-import com.lomo.domain.repository.SyncPolicyRepository
-import com.lomo.domain.repository.WebDavSyncRepository
-import com.lomo.domain.usecase.SyncAndRebuildUseCase
+import com.lomo.domain.usecase.WebDavSyncSettingsUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,14 +29,12 @@ sealed interface SettingsWebDavConnectionTestState {
 }
 
 class SettingsWebDavCoordinator(
-    private val webDavSyncRepository: WebDavSyncRepository,
-    private val syncPolicyRepository: SyncPolicyRepository,
-    private val syncAndRebuildUseCase: SyncAndRebuildUseCase,
+    private val webDavSyncSettingsUseCase: WebDavSyncSettingsUseCase,
     scope: CoroutineScope,
 ) {
     val webDavSyncEnabled: StateFlow<Boolean> =
-        webDavSyncRepository
-            .isWebDavSyncEnabled()
+        webDavSyncSettingsUseCase
+            .observeWebDavSyncEnabled()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -47,25 +42,25 @@ class SettingsWebDavCoordinator(
             )
 
     val webDavProvider: StateFlow<WebDavProvider> =
-        webDavSyncRepository
-            .getProvider()
+        webDavSyncSettingsUseCase
+            .observeProvider()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), WebDavProvider.NUTSTORE)
 
     val webDavBaseUrl: StateFlow<String> =
-        webDavSyncRepository
-            .getBaseUrl()
+        webDavSyncSettingsUseCase
+            .observeBaseUrl()
             .map { it ?: "" }
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
 
     val webDavEndpointUrl: StateFlow<String> =
-        webDavSyncRepository
-            .getEndpointUrl()
+        webDavSyncSettingsUseCase
+            .observeEndpointUrl()
             .map { it ?: "" }
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
 
     val webDavUsername: StateFlow<String> =
-        webDavSyncRepository
-            .getUsername()
+        webDavSyncSettingsUseCase
+            .observeUsername()
             .map { it ?: "" }
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), "")
 
@@ -73,8 +68,8 @@ class SettingsWebDavCoordinator(
     val passwordConfigured: StateFlow<Boolean> = _passwordConfigured.asStateFlow()
 
     val webDavAutoSyncEnabled: StateFlow<Boolean> =
-        webDavSyncRepository
-            .getAutoSyncEnabled()
+        webDavSyncSettingsUseCase
+            .observeAutoSyncEnabled()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -82,8 +77,8 @@ class SettingsWebDavCoordinator(
             )
 
     val webDavAutoSyncInterval: StateFlow<String> =
-        webDavSyncRepository
-            .getAutoSyncInterval()
+        webDavSyncSettingsUseCase
+            .observeAutoSyncInterval()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -91,8 +86,8 @@ class SettingsWebDavCoordinator(
             )
 
     val webDavSyncOnRefreshEnabled: StateFlow<Boolean> =
-        webDavSyncRepository
-            .getSyncOnRefreshEnabled()
+        webDavSyncSettingsUseCase
+            .observeSyncOnRefreshEnabled()
             .stateIn(
                 scope,
                 SharingStarted.WhileSubscribed(5000),
@@ -100,14 +95,14 @@ class SettingsWebDavCoordinator(
             )
 
     val webDavLastSyncTime: StateFlow<Long> =
-        webDavSyncRepository
+        webDavSyncSettingsUseCase
             .observeLastSyncTimeMillis()
             .map { it ?: 0L }
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), 0L)
 
     val webDavSyncState: StateFlow<WebDavSyncState> =
-        webDavSyncRepository
-            .syncState()
+        webDavSyncSettingsUseCase
+            .observeSyncState()
             .stateIn(scope, SharingStarted.WhileSubscribed(5000), WebDavSyncState.Idle)
 
     private val _connectionTestState = MutableStateFlow<SettingsWebDavConnectionTestState>(SettingsWebDavConnectionTestState.Idle)
@@ -115,67 +110,64 @@ class SettingsWebDavCoordinator(
 
     suspend fun refreshPasswordConfigured(): String? =
         runWithError("Failed to read WebDAV password state") {
-            _passwordConfigured.value = webDavSyncRepository.isPasswordConfigured()
+            _passwordConfigured.value = webDavSyncSettingsUseCase.isPasswordConfigured()
         }
 
     suspend fun updateWebDavSyncEnabled(enabled: Boolean): String? =
         runWithError("Failed to update WebDAV sync setting") {
-            syncPolicyRepository.setRemoteSyncBackend(if (enabled) SyncBackendType.WEBDAV else SyncBackendType.NONE)
-            syncPolicyRepository.applyRemoteSyncPolicy()
+            webDavSyncSettingsUseCase.updateWebDavSyncEnabled(enabled)
         }
 
     suspend fun updateWebDavProvider(provider: WebDavProvider): String? =
         runWithError("Failed to update WebDAV provider") {
-            webDavSyncRepository.setProvider(provider)
+            webDavSyncSettingsUseCase.updateProvider(provider)
         }
 
     suspend fun updateWebDavBaseUrl(url: String): String? =
         runWithError("Failed to update WebDAV base URL") {
-            webDavSyncRepository.setBaseUrl(url)
+            webDavSyncSettingsUseCase.updateBaseUrl(url)
         }
 
     suspend fun updateWebDavEndpointUrl(url: String): String? =
         runWithError("Failed to update WebDAV endpoint") {
-            webDavSyncRepository.setEndpointUrl(url)
+            webDavSyncSettingsUseCase.updateEndpointUrl(url)
         }
 
     suspend fun updateWebDavUsername(username: String): String? =
         runWithError("Failed to update WebDAV username") {
-            webDavSyncRepository.setUsername(username)
+            webDavSyncSettingsUseCase.updateUsername(username)
         }
 
     suspend fun updateWebDavPassword(password: String): String? =
         runWithError("Failed to update WebDAV password") {
-            webDavSyncRepository.setPassword(password)
+            webDavSyncSettingsUseCase.updatePassword(password)
             _passwordConfigured.value = password.isNotBlank()
         }
 
     suspend fun updateWebDavAutoSyncEnabled(enabled: Boolean): String? =
         runWithError("Failed to update WebDAV auto-sync setting") {
-            webDavSyncRepository.setAutoSyncEnabled(enabled)
-            syncPolicyRepository.applyRemoteSyncPolicy()
+            webDavSyncSettingsUseCase.updateAutoSyncEnabled(enabled)
         }
 
     suspend fun updateWebDavAutoSyncInterval(interval: String): String? =
         runWithError("Failed to update WebDAV auto-sync interval") {
-            webDavSyncRepository.setAutoSyncInterval(interval)
-            syncPolicyRepository.applyRemoteSyncPolicy()
+            webDavSyncSettingsUseCase.updateAutoSyncInterval(interval)
         }
 
     suspend fun updateWebDavSyncOnRefresh(enabled: Boolean): String? =
         runWithError("Failed to update WebDAV sync-on-refresh setting") {
-            webDavSyncRepository.setSyncOnRefreshEnabled(enabled)
+            webDavSyncSettingsUseCase.updateSyncOnRefreshEnabled(enabled)
         }
 
     suspend fun triggerWebDavSyncNow(): String? =
         runWithError("Failed to run WebDAV sync") {
-            syncAndRebuildUseCase(forceSync = true)
+            webDavSyncSettingsUseCase.triggerSyncNow()
         }
 
     suspend fun testWebDavConnection(): String? =
         try {
             _connectionTestState.value = SettingsWebDavConnectionTestState.Testing
-            val result = webDavSyncRepository.testConnection()
+            val result = webDavSyncSettingsUseCase.testConnection()
             _connectionTestState.value =
                 when (result) {
                     is WebDavSyncResult.Success -> SettingsWebDavConnectionTestState.Success(result.message)

@@ -2,6 +2,7 @@ package com.lomo.data.share
 
 import com.lomo.data.share.LomoShareServer.PrepareRequest
 import com.lomo.data.share.LomoShareServer.TransferMetadata
+import com.lomo.domain.model.ShareTransferLimits
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 

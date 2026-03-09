@@ -1,11 +1,11 @@
 package com.lomo.data.parser
 
-import com.lomo.data.memo.MemoIdentityPolicy
 import com.lomo.data.util.MemoLocalDateResolver
 import com.lomo.data.util.MemoTextProcessor
 import com.lomo.domain.model.Memo
 import com.lomo.domain.model.StorageFilenameFormats
 import com.lomo.domain.model.StorageTimestampFormats
+import com.lomo.domain.usecase.MemoIdentityPolicy
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate

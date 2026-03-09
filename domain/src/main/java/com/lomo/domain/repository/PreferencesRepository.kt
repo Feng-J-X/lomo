@@ -33,12 +33,6 @@ interface PreferencesRepository {
 
     suspend fun setShowInputHintsEnabled(enabled: Boolean)
 
-    @Deprecated(
-        message = "Use setShowInputHintsEnabled(enabled) for naming symmetry with isShowInputHintsEnabled().",
-        replaceWith = ReplaceWith("setShowInputHintsEnabled(enabled)"),
-    )
-    suspend fun setShowInputHints(enabled: Boolean) = setShowInputHintsEnabled(enabled)
-
     fun isDoubleTapEditEnabled(): Flow<Boolean>
 
     suspend fun setDoubleTapEditEnabled(enabled: Boolean)
