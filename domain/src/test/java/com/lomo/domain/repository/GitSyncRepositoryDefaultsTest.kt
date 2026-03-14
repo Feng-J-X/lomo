@@ -98,5 +98,10 @@ class GitSyncRepositoryDefaultsTest {
         ): List<MemoVersion> = emptyList()
 
         override fun syncState(): Flow<SyncEngineState> = flowOf(SyncEngineState.Idle)
+
+        override suspend fun resolveConflicts(
+            resolution: com.lomo.domain.model.SyncConflictResolution,
+            conflictSet: com.lomo.domain.model.SyncConflictSet,
+        ): GitSyncResult = GitSyncResult.NotConfigured
     }
 }

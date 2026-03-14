@@ -31,6 +31,11 @@ class WebDavSyncWorker
                     if (runAttemptCount < 3) Result.retry() else Result.failure()
                 }
 
+                is WebDavSyncResult.Conflict -> {
+                    Timber.w("WebDavSyncWorker conflict detected: ${result.message}")
+                    Result.success()
+                }
+
                 WebDavSyncResult.NotConfigured -> {
                     Result.success()
                 }

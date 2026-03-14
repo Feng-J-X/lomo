@@ -24,6 +24,10 @@ sealed interface SyncEngineState {
     data object NotConfigured : SyncEngineState
 
     data object Initializing : SyncEngineState
+
+    data class ConflictDetected(
+        val conflicts: SyncConflictSet,
+    ) : SyncEngineState
 }
 
 data class GitSyncStatus(
@@ -46,4 +50,9 @@ sealed interface GitSyncResult {
     data object NotConfigured : GitSyncResult
 
     data object DirectPathRequired : GitSyncResult
+
+    data class Conflict(
+        val message: String,
+        val conflicts: SyncConflictSet,
+    ) : GitSyncResult
 }

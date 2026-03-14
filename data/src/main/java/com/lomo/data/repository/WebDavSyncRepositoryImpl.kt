@@ -18,6 +18,11 @@ import com.lomo.domain.model.WebDavSyncReason
 import com.lomo.domain.model.WebDavSyncResult
 import com.lomo.domain.model.WebDavSyncState
 import com.lomo.domain.model.WebDavSyncStatus
+import com.lomo.domain.model.SyncBackendType
+import com.lomo.domain.model.SyncConflictFile
+import com.lomo.domain.model.SyncConflictResolution
+import com.lomo.domain.model.SyncConflictResolutionChoice
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.repository.WebDavSyncRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -151,6 +156,67 @@ class WebDavSyncRepositoryImpl
 
         override fun syncState(): Flow<WebDavSyncState> = syncState
 
+        override suspend fun resolveConflicts(
+            resolution: SyncConflictResolution,
+            conflictSet: SyncConflictSet,
+        ): WebDavSyncResult {
+            val config = resolveConfig() ?: return notConfiguredResult()
+            val layout = SyncDirectoryLayout.resolve(dataStore)
+            return try {
+                runWebDavIo {
+                    val client = clientFactory.create(config.endpointUrl, config.username, config.password)
+
+                    for (file in conflictSet.files) {
+                        val choice = resolution.perFileChoices[file.relativePath]
+                            ?: SyncConflictResolutionChoice.KEEP_LOCAL
+                        when (choice) {
+                            SyncConflictResolutionChoice.KEEP_LOCAL -> {
+                                val content = file.localContent ?: continue
+                                client.put(
+                                    path = file.relativePath,
+                                    bytes = content.toByteArray(StandardCharsets.UTF_8),
+                                    contentType = contentTypeForPath(file.relativePath, layout),
+                                )
+                            }
+
+                            SyncConflictResolutionChoice.KEEP_REMOTE -> {
+                                val content = file.remoteContent ?: continue
+                                if (isMemoPath(file.relativePath, layout)) {
+                                    val memoFilename = extractMemoFilename(file.relativePath, layout)
+                                    markdownStorageDataSource.saveFileIn(
+                                        directory = MemoDirectoryType.MAIN,
+                                        filename = memoFilename,
+                                        content = content,
+                                    )
+                                } else {
+                                    localMediaSyncStore.writeBytes(
+                                        file.relativePath,
+                                        content.toByteArray(StandardCharsets.UTF_8),
+                                        layout,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    try {
+                        memoSynchronizer.refresh()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Timber.w(e, "Memo refresh after WebDAV conflict resolution failed")
+                    }
+
+                    syncState.value = WebDavSyncState.Success(System.currentTimeMillis(), "Conflicts resolved")
+                    WebDavSyncResult.Success("Conflicts resolved")
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mapError(error)
+            }
+        }
+
         private suspend fun performSync(): WebDavSyncResult {
             val config = resolveConfig() ?: return notConfiguredResult()
             val layout = SyncDirectoryLayout.resolve(dataStore)
@@ -176,12 +242,52 @@ class WebDavSyncRepositoryImpl
                             }
                         val existingMetadata = metadataDao.getAll().associateBy { it.relativePath }
                         val plan = planner.plan(localFiles, remoteFiles, existingMetadata)
+
+                        // Detect conflicts: separate CONFLICT actions from normal ones
+                        val conflictActions = plan.actions.filter { it.direction == WebDavSyncDirection.CONFLICT }
+                        val normalActions = plan.actions.filter { it.direction != WebDavSyncDirection.CONFLICT }
+
+                        if (conflictActions.isNotEmpty()) {
+                            val conflictFiles =
+                                conflictActions.mapNotNull { action ->
+                                    val localContent =
+                                        if (isMemoPath(action.path, layout)) {
+                                            val memoFilename = extractMemoFilename(action.path, layout)
+                                            markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, memoFilename)
+                                        } else {
+                                            null
+                                        }
+                                    val remoteContent =
+                                        try {
+                                            val remoteFile = client.get(action.path)
+                                            String(remoteFile.bytes, StandardCharsets.UTF_8)
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    SyncConflictFile(
+                                        relativePath = action.path,
+                                        localContent = localContent,
+                                        remoteContent = remoteContent,
+                                        isBinary = !action.path.endsWith(MEMO_SUFFIX),
+                                    )
+                                }
+                            if (conflictFiles.isNotEmpty()) {
+                                val conflictSet =
+                                    SyncConflictSet(
+                                        source = SyncBackendType.WEBDAV,
+                                        files = conflictFiles,
+                                        timestamp = System.currentTimeMillis(),
+                                    )
+                                syncState.value = WebDavSyncState.ConflictDetected(conflictSet)
+                            }
+                        }
+
                         val actionOutcomes = mutableMapOf<String, Pair<WebDavSyncDirection, WebDavSyncReason>>()
                         val failedPaths = mutableListOf<String>()
                         var localChanged = false
                         var remoteChanged = false
 
-                        plan.actions.forEach { action ->
+                        normalActions.forEach { action ->
                             try {
                                 when (action.direction) {
                                     WebDavSyncDirection.UPLOAD -> {
@@ -244,6 +350,11 @@ class WebDavSyncRepositoryImpl
                                     WebDavSyncDirection.NONE -> {
                                         Unit
                                     }
+
+                                    WebDavSyncDirection.CONFLICT -> {
+                                        // Conflicts are handled separately above
+                                        Unit
+                                    }
                                 }
                             } catch (ce: CancellationException) {
                                 throw ce
@@ -255,6 +366,7 @@ class WebDavSyncRepositoryImpl
                                         WebDavSyncDirection.DELETE_LOCAL -> "delete local"
                                         WebDavSyncDirection.DELETE_REMOTE -> "delete remote"
                                         WebDavSyncDirection.NONE -> "sync"
+                                        WebDavSyncDirection.CONFLICT -> "conflict"
                                     }
                                 Timber.e(error, "Failed to %s %s", operation, action.path)
                                 failedPaths += action.path
@@ -278,6 +390,39 @@ class WebDavSyncRepositoryImpl
                             WebDavSyncResult.Error(
                                 message = summary,
                                 outcomes = plan.actions.map { it.toOutcome() },
+                            )
+                        } else if (conflictActions.isNotEmpty()) {
+                            val conflictFiles =
+                                conflictActions.mapNotNull { action ->
+                                    val localContent =
+                                        if (isMemoPath(action.path, layout)) {
+                                            val memoFilename = extractMemoFilename(action.path, layout)
+                                            markdownStorageDataSource.readFileIn(MemoDirectoryType.MAIN, memoFilename)
+                                        } else {
+                                            null
+                                        }
+                                    val remoteContent =
+                                        try {
+                                            val remoteFile = client.get(action.path)
+                                            String(remoteFile.bytes, StandardCharsets.UTF_8)
+                                        } catch (_: Exception) {
+                                            null
+                                        }
+                                    SyncConflictFile(
+                                        relativePath = action.path,
+                                        localContent = localContent,
+                                        remoteContent = remoteContent,
+                                        isBinary = !action.path.endsWith(MEMO_SUFFIX),
+                                    )
+                                }
+                            WebDavSyncResult.Conflict(
+                                message = "${conflictFiles.size} conflicting file(s) detected",
+                                conflicts =
+                                    SyncConflictSet(
+                                        source = SyncBackendType.WEBDAV,
+                                        files = conflictFiles,
+                                        timestamp = System.currentTimeMillis(),
+                                    ),
                             )
                         } else {
                             WebDavSyncResult.Success(
@@ -305,6 +450,10 @@ class WebDavSyncRepositoryImpl
                                 syncState.value = WebDavSyncState.Error(result.message, now)
                             }
 
+                            is WebDavSyncResult.Conflict -> {
+                                syncState.value = WebDavSyncState.ConflictDetected(result.conflicts)
+                            }
+
                             WebDavSyncResult.NotConfigured -> {
                                 Unit
                             }
@@ -317,6 +466,7 @@ class WebDavSyncRepositoryImpl
                             when (result) {
                                 is WebDavSyncResult.Success -> result.outcomes
                                 is WebDavSyncResult.Error -> result.outcomes
+                                is WebDavSyncResult.Conflict -> emptyList()
                                 WebDavSyncResult.NotConfigured -> emptyList()
                             }
                         val message = "WebDAV sync completed but memo refresh failed: ${error.message ?: "unknown error"}"

@@ -15,6 +15,8 @@ import com.lomo.data.sync.SyncLayoutMigration
 import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.GitSyncStatus
 import com.lomo.domain.model.MemoVersion
+import com.lomo.domain.model.SyncConflictResolution
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.model.SyncEngineState
 import com.lomo.domain.repository.GitSyncRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -300,6 +302,10 @@ class GitSyncRepositoryImpl
                     gitSyncEngine.sync(rootDir, remoteUrl)
                 }
 
+            if (result is GitSyncResult.Conflict) {
+                return result
+            }
+
             if (result is GitSyncResult.Success) {
                 val mediaSummary = gitMediaSyncBridge.reconcile(rootDir, layout)
                 if (mediaSummary.repoChanged) {
@@ -395,6 +401,53 @@ class GitSyncRepositoryImpl
         }
 
         override fun syncState(): Flow<SyncEngineState> = gitSyncEngine.syncState
+
+        override suspend fun resolveConflicts(
+            resolution: SyncConflictResolution,
+            conflictSet: SyncConflictSet,
+        ): GitSyncResult {
+            val remoteUrl = dataStore.gitRemoteUrl.first()
+            if (remoteUrl.isNullOrBlank()) {
+                return GitSyncResult.Error("Repository URL is not configured")
+            }
+            if (credentialStore.getToken().isNullOrBlank()) {
+                return GitSyncResult.Error(GitSyncErrorMessages.PAT_REQUIRED)
+            }
+
+            val layout = SyncDirectoryLayout.resolve(dataStore)
+            val directRootDir = resolveRootDir()
+            val repoDir: File =
+                if (directRootDir != null) {
+                    resolveGitRepoDir(directRootDir, layout)
+                } else {
+                    val safRootUri =
+                        resolveSafRootUri()
+                            ?: return GitSyncResult.Error("Memo directory is not configured")
+                    if (!layout.allSameDirectory) {
+                        resolveGitRepoDirForUri(safRootUri)
+                    } else {
+                        runGitIo { safGitMirrorBridge.mirrorDirectoryFor(safRootUri) }
+                    }
+                }
+
+            val result =
+                runGitIo {
+                    gitSyncEngine.resolveConflicts(repoDir, remoteUrl, resolution, conflictSet)
+                }
+
+            if (result is GitSyncResult.Success) {
+                mirrorMemoFromRepo(repoDir, layout)
+                try {
+                    memoSynchronizer.refresh()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Timber.w(e, "Memo refresh after conflict resolution failed")
+                }
+            }
+
+            return result
+        }
 
         override suspend fun testConnection(): GitSyncResult {
             val remoteUrl = dataStore.gitRemoteUrl.first()

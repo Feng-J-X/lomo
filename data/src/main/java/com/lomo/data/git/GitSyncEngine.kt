@@ -3,6 +3,8 @@ package com.lomo.data.git
 import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.GitSyncStatus
+import com.lomo.domain.model.SyncConflictResolution
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.model.SyncEngineState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,6 +96,10 @@ class GitSyncEngine
                                 )
                         }
 
+                        is GitSyncResult.Conflict -> {
+                            _syncState.value = SyncEngineState.ConflictDetected(result.conflicts)
+                        }
+
                         else -> {
                             _syncState.value = SyncEngineState.Idle
                         }
@@ -173,6 +179,32 @@ class GitSyncEngine
                 outcome.result
             }
 
+        suspend fun resolveConflicts(
+            rootDir: File,
+            remoteUrl: String,
+            resolution: SyncConflictResolution,
+            conflictSet: SyncConflictSet,
+        ): GitSyncResult =
+            mutex.withLock {
+                _syncState.value = SyncEngineState.Syncing.Pushing
+                try {
+                    val result =
+                        conflictRecoveryCoordinator.applyConflictResolution(
+                            rootDir = rootDir,
+                            remoteUrl = remoteUrl,
+                            resolution = resolution,
+                            conflictSet = conflictSet,
+                        )
+                    publishResultState(result)
+                    result
+                } catch (e: Exception) {
+                    Timber.e(e, "Git conflict resolution failed")
+                    val message = e.message ?: "Unknown error"
+                    _syncState.value = SyncEngineState.Error(message, System.currentTimeMillis())
+                    GitSyncResult.Error(message, e)
+                }
+            }
+
         private fun publishResultState(result: GitSyncResult) {
             when (result) {
                 is GitSyncResult.Success -> {
@@ -181,6 +213,10 @@ class GitSyncEngine
 
                 is GitSyncResult.Error -> {
                     _syncState.value = SyncEngineState.Error(result.message, System.currentTimeMillis())
+                }
+
+                is GitSyncResult.Conflict -> {
+                    _syncState.value = SyncEngineState.ConflictDetected(result.conflicts)
                 }
 
                 else -> {

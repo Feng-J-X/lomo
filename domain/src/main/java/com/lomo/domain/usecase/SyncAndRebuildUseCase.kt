@@ -2,6 +2,7 @@ package com.lomo.domain.usecase
 
 import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.SyncBackendType
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.model.WebDavSyncResult
 import com.lomo.domain.repository.GitSyncRepository
 import com.lomo.domain.repository.MemoRepository
@@ -72,6 +73,7 @@ class SyncAndRebuildUseCase
                 is GitSyncResult.Error -> result.toException(defaultMessage = "Git sync failed")
                 GitSyncResult.NotConfigured -> SyncFailureException("Git sync is not configured")
                 GitSyncResult.DirectPathRequired -> SyncFailureException("Git sync requires a direct local directory path")
+                is GitSyncResult.Conflict -> SyncConflictException(result.conflicts)
             }
 
         private fun webDavResultToException(result: WebDavSyncResult): Exception? =
@@ -79,6 +81,7 @@ class SyncAndRebuildUseCase
                 is WebDavSyncResult.Success -> null
                 is WebDavSyncResult.Error -> result.toException(defaultMessage = "WebDAV sync failed")
                 WebDavSyncResult.NotConfigured -> SyncFailureException("WebDAV sync is not configured")
+                is WebDavSyncResult.Conflict -> SyncConflictException(result.conflicts)
             }
 
         private fun GitSyncResult.Error.toException(defaultMessage: String): Exception {
@@ -110,3 +113,7 @@ class SyncAndRebuildUseCase
             cause: Throwable? = null,
         ) : Exception(message, cause)
     }
+
+class SyncConflictException(
+    val conflicts: SyncConflictSet,
+) : Exception("Sync conflict detected: ${conflicts.files.size} file(s)")

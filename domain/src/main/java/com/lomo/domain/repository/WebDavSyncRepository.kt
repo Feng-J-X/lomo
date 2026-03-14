@@ -1,5 +1,7 @@
 package com.lomo.domain.repository
 
+import com.lomo.domain.model.SyncConflictResolution
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.model.WebDavProvider
 import com.lomo.domain.model.WebDavSyncResult
 import com.lomo.domain.model.WebDavSyncState
@@ -54,6 +56,11 @@ interface WebDavSyncRepository {
     suspend fun getStatus(): WebDavSyncStatus
 
     suspend fun testConnection(): WebDavSyncResult
+
+    suspend fun resolveConflicts(
+        resolution: SyncConflictResolution,
+        conflictSet: SyncConflictSet,
+    ): WebDavSyncResult
 
     fun syncState(): Flow<WebDavSyncState>
 }

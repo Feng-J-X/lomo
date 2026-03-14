@@ -32,6 +32,7 @@ import com.lomo.domain.usecase.SaveImageUseCase
 import com.lomo.domain.usecase.StartupMaintenanceUseCase
 import com.lomo.domain.usecase.SwitchRootStorageUseCase
 import com.lomo.domain.usecase.SyncAndRebuildUseCase
+import com.lomo.domain.usecase.SyncConflictResolutionUseCase
 import com.lomo.domain.usecase.ToggleMemoCheckboxUseCase
 import com.lomo.domain.usecase.UpdateMemoContentUseCase
 import com.lomo.domain.usecase.ValidateMemoContentUseCase
@@ -239,5 +240,18 @@ object DomainBindingsModule {
             preferencesRepository = preferencesRepository,
             appUpdateRepository = appUpdateRepository,
             appRuntimeInfoRepository = appRuntimeInfoRepository,
+        )
+
+    @Provides
+    @Singleton
+    fun provideSyncConflictResolutionUseCase(
+        gitSyncRepository: GitSyncRepository,
+        webDavSyncRepository: WebDavSyncRepository,
+        memoRepository: MemoRepository,
+    ): SyncConflictResolutionUseCase =
+        SyncConflictResolutionUseCase(
+            gitSyncRepository = gitSyncRepository,
+            webDavSyncRepository = webDavSyncRepository,
+            memoRepository = memoRepository,
         )
 }

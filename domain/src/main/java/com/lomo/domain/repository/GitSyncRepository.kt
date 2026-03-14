@@ -3,6 +3,8 @@ package com.lomo.domain.repository
 import com.lomo.domain.model.GitSyncResult
 import com.lomo.domain.model.GitSyncStatus
 import com.lomo.domain.model.MemoVersion
+import com.lomo.domain.model.SyncConflictResolution
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.model.SyncEngineState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -72,6 +74,12 @@ interface GitSyncRepository {
         dateKey: String,
         memoTimestamp: Long,
     ): List<MemoVersion>
+
+    // Conflict resolution
+    suspend fun resolveConflicts(
+        resolution: SyncConflictResolution,
+        conflictSet: SyncConflictSet,
+    ): GitSyncResult
 
     // State observation
     fun syncState(): Flow<SyncEngineState>

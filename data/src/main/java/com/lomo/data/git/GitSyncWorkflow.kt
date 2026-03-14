@@ -2,6 +2,9 @@ package com.lomo.data.git
 
 import com.lomo.data.local.datastore.LomoDataStore
 import com.lomo.domain.model.GitSyncResult
+import com.lomo.domain.model.SyncBackendType
+import com.lomo.domain.model.SyncConflictFile
+import com.lomo.domain.model.SyncConflictSet
 import com.lomo.domain.model.SyncEngineState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -9,8 +12,11 @@ import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.RebaseResult
 import org.eclipse.jgit.lib.PersonIdent
+import org.eclipse.jgit.lib.Repository
 import org.eclipse.jgit.merge.MergeStrategy
+import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+import org.eclipse.jgit.treewalk.TreeWalk
 import timber.log.Timber
 import java.io.File
 import java.time.LocalDateTime
@@ -209,7 +215,35 @@ class GitSyncWorkflow
                                 RebaseResult.Status.EDIT,
                                 -> {
                                     Timber.w("Rebase requires manual resolution: %s", rebaseResult.status)
+                                    val conflictingPaths = g.status().call().conflicting
+                                    val conflictFiles =
+                                        conflictingPaths.mapNotNull { path ->
+                                            val localContent =
+                                                try {
+                                                    File(rootDir, path).readText(Charsets.UTF_8)
+                                                } catch (_: Exception) {
+                                                    null
+                                                }
+                                            val remoteContent = readFileFromRef(g.repository, remoteBranch, path)
+                                            SyncConflictFile(
+                                                relativePath = path,
+                                                localContent = localContent,
+                                                remoteContent = remoteContent,
+                                                isBinary = !path.endsWith(".md"),
+                                            )
+                                        }
                                     primitives.abortRebaseQuietly(g)
+                                    if (conflictFiles.isNotEmpty()) {
+                                        return@withContext GitSyncResult.Conflict(
+                                            message = "Sync halted: ${conflictFiles.size} conflicting file(s) detected.",
+                                            conflicts =
+                                                SyncConflictSet(
+                                                    source = SyncBackendType.GIT,
+                                                    files = conflictFiles,
+                                                    timestamp = System.currentTimeMillis(),
+                                                ),
+                                        )
+                                    }
                                     return@withContext GitSyncResult.Error(
                                         "Sync halted: rebase ${rebaseResult.status.name} detected. " +
                                             "Remote changes were preserved; please resolve conflicts manually.",
@@ -304,5 +338,24 @@ class GitSyncWorkflow
         private fun syncCommitMessage(): String {
             val timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
             return "sync: $timestamp via Lomo"
+        }
+
+        private fun readFileFromRef(
+            repo: Repository,
+            refName: String,
+            path: String,
+        ): String? {
+            val ref = repo.resolve(refName) ?: return null
+            val revWalk = RevWalk(repo)
+            try {
+                val commit = revWalk.parseCommit(ref)
+                val tree = commit.tree
+                val treeWalk = TreeWalk.forPath(repo, path, tree) ?: return null
+                val objectId = treeWalk.getObjectId(0)
+                val loader = repo.open(objectId)
+                return String(loader.bytes, Charsets.UTF_8)
+            } finally {
+                revWalk.dispose()
+            }
         }
     }

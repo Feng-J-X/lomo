@@ -12,6 +12,7 @@ enum class WebDavSyncDirection {
     DOWNLOAD,
     DELETE_LOCAL,
     DELETE_REMOTE,
+    CONFLICT,
 }
 
 enum class WebDavSyncReason {
@@ -23,6 +24,7 @@ enum class WebDavSyncReason {
     LOCAL_DELETED,
     REMOTE_DELETED,
     SAME_TIMESTAMP,
+    CONFLICT,
 }
 
 data class WebDavSyncOutcome(
@@ -51,6 +53,11 @@ sealed interface WebDavSyncResult {
     ) : WebDavSyncResult
 
     data object NotConfigured : WebDavSyncResult
+
+    data class Conflict(
+        val message: String,
+        val conflicts: SyncConflictSet,
+    ) : WebDavSyncResult
 }
 
 sealed interface WebDavSyncState {
@@ -79,4 +86,8 @@ sealed interface WebDavSyncState {
     ) : WebDavSyncState
 
     data object NotConfigured : WebDavSyncState
+
+    data class ConflictDetected(
+        val conflicts: SyncConflictSet,
+    ) : WebDavSyncState
 }

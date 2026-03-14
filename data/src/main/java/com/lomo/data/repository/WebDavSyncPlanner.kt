@@ -86,7 +86,7 @@ class WebDavSyncPlanner(
             !localChanged && !remoteChanged -> null
             localChanged && !remoteChanged -> WebDavSyncAction(path, WebDavSyncDirection.UPLOAD, WebDavSyncReason.LOCAL_ONLY)
             !localChanged && remoteChanged -> WebDavSyncAction(path, WebDavSyncDirection.DOWNLOAD, WebDavSyncReason.REMOTE_ONLY)
-            else -> newerWins(path, local.lastModified, remote.lastModified ?: 0L)
+            else -> WebDavSyncAction(path, WebDavSyncDirection.CONFLICT, WebDavSyncReason.CONFLICT)
         }
     }
 

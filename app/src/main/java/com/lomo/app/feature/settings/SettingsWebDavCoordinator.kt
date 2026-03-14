@@ -180,6 +180,10 @@ class SettingsWebDavCoordinator(
                         )
                     }
 
+                    is WebDavSyncResult.Conflict -> {
+                        SettingsWebDavConnectionTestState.Error("WebDAV sync conflict detected")
+                    }
+
                     WebDavSyncResult.NotConfigured -> {
                         SettingsWebDavConnectionTestState.Error("WebDAV sync is not configured")
                     }
