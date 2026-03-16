@@ -60,6 +60,11 @@ import com.lomo.domain.model.MemoListFilter
 import com.lomo.domain.model.MemoSortOption
 import com.lomo.ui.component.navigation.SidebarDrawer
 import com.lomo.ui.theme.MotionTokens
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -84,7 +89,7 @@ import java.time.LocalDate
  *    - Physics-based animations for FAB and Lists.
  * ```
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun MainScreen(
     onNavigateToSettings: () -> Unit,
@@ -104,13 +109,11 @@ fun MainScreen(
     // Collect Flow state safely with Lifecycle awareness using collectAsStateWithLifecycle
     // to ensure flows are paused when the app is in the background.
     val uiMemos by viewModel.uiMemos.collectAsStateWithLifecycle()
-    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val searchQuery by sidebarViewModel.searchQuery.collectAsStateWithLifecycle()
     val selectedTag by sidebarViewModel.selectedTag.collectAsStateWithLifecycle()
     val memoListFilter by viewModel.memoListFilter.collectAsStateWithLifecycle()
     val sidebarUiState by sidebarViewModel.sidebarUiState.collectAsStateWithLifecycle()
     val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
-    val editorErrorMessage by editorViewModel.errorMessage.collectAsStateWithLifecycle()
     val dateFormat = appPreferences.dateFormat
     val timeFormat = appPreferences.timeFormat
     val showInputHints = appPreferences.showInputHints
@@ -119,16 +122,8 @@ fun MainScreen(
     val quickSaveOnBackEnabled = appPreferences.quickSaveOnBackEnabled
     val shareCardStyle = appPreferences.shareCardStyle.value
     val shareCardShowTime = appPreferences.shareCardShowTime
-    val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
-    val gitSyncEnabled by viewModel.gitSyncEnabled.collectAsStateWithLifecycle()
-    val versionHistoryState by viewModel.versionHistoryState.collectAsStateWithLifecycle()
-    val sharedContentEvents by viewModel.sharedContentEvents.collectAsStateWithLifecycle()
-    val pendingSharedImageEvents by viewModel.pendingSharedImageEvents.collectAsStateWithLifecycle()
-    val appActionEvents by viewModel.appActionEvents.collectAsStateWithLifecycle()
 
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val imageDir by viewModel.imageDirectory.collectAsStateWithLifecycle()
-    val voiceDir by viewModel.voiceDirectory.collectAsStateWithLifecycle()
 
     // Manual pull-to-refresh is available for explicit data reload.
     val hasItems = uiMemos.isNotEmpty()
@@ -145,16 +140,22 @@ fun MainScreen(
                 .LazyListState()
         }
     val editorController = rememberMemoEditorController()
-    val draftText by editorViewModel.draftText.collectAsStateWithLifecycle()
 
     // Debounced draft save: when in create mode, save input text to DataStore
     LaunchedEffect(editorController) {
-        snapshotFlow { editorController.editingMemo to editorController.inputValue.text }
-            .collect { (editingMemo, text) ->
-                if (editingMemo == null && editorController.isVisible) {
-                    kotlinx.coroutines.delay(500)
-                    editorViewModel.saveDraft(text)
-                }
+        snapshotFlow {
+            DraftAutosaveState(
+                editingMemoId = editorController.editingMemo?.id,
+                text = editorController.inputValue.text,
+                isVisible = editorController.isVisible,
+            )
+        }.filter { state ->
+            state.editingMemoId == null && state.isVisible
+        }.map { state -> state.text }
+            .debounce(500)
+            .distinctUntilChanged()
+            .collect { text ->
+                editorViewModel.saveDraft(text)
             }
     }
 
@@ -177,37 +178,15 @@ fun MainScreen(
         }
     }
 
-    MainScreenEventEffectsHost(
-        sharedContentEvents = sharedContentEvents,
-        appActionEvents = appActionEvents,
-        pendingSharedImageEvents = pendingSharedImageEvents,
-        imageDirectory = imageDir,
-        errorMessage = errorMessage,
-        editorErrorMessage = editorErrorMessage,
+    MainScreenTransientEffects(
+        viewModel = viewModel,
+        editorViewModel = editorViewModel,
+        uiMemos = uiMemos,
+        listState = listState,
+        editorController = editorController,
+        directoryGuideController = directoryGuideController,
         snackbarHostState = snackbarHostState,
         unknownErrorMessage = unknownErrorMessage,
-        onAppendMarkdown = editorController::appendMarkdownBlock,
-        onAppendImageMarkdown = editorController::appendImageMarkdown,
-        onEnsureEditorVisible = editorController::ensureVisible,
-        onOpenCreateMemo = { editorController.openForCreate(draftText) },
-        onOpenEditMemo = editorController::openForEdit,
-        onFocusMemoInList = { memoId ->
-            val index = uiMemos.indexOfFirst { it.memo.id == memoId }
-            if (index >= 0) {
-                listState.animateScrollToItem(index)
-                true
-            } else {
-                false
-            }
-        },
-        onResolveMemoById = viewModel::resolveMemoById,
-        onSaveImage = { uri, onResult -> editorViewModel.saveImage(uri = uri, onResult = onResult) },
-        onRequireImageDirectory = directoryGuideController::requestImage,
-        onConsumeSharedContentEvent = viewModel::consumeSharedContentEvent,
-        onConsumeAppActionEvent = viewModel::consumeAppActionEvent,
-        onConsumePendingSharedImageEvent = viewModel::consumePendingSharedImageEvent,
-        onClearMainError = viewModel::clearError,
-        onClearEditorError = editorViewModel::clearError,
     )
 
     val allTags = remember(sidebarUiState.tags) { sidebarUiState.tags.map { it.name }.sorted() }
@@ -220,70 +199,22 @@ fun MainScreen(
         }
     }
 
-    MemoInteractionHost(
+    MainScreenInteractionBindings(
+        viewModel = viewModel,
+        editorViewModel = editorViewModel,
+        recordingViewModel = recordingViewModel,
+        editorController = editorController,
+        directoryGuideController = directoryGuideController,
+        scope = scope,
+        snackbarHostState = snackbarHostState,
+        unknownErrorMessage = unknownErrorMessage,
         shareCardStyle = shareCardStyle,
         shareCardShowTime = shareCardShowTime,
-        activeDayCount = activeDayCount,
-        imageDirectory = imageDir,
-        controller = editorController,
         quickSaveOnBackEnabled = quickSaveOnBackEnabled,
-        onDeleteMemo = viewModel::deleteMemo,
-        onUpdateMemo = editorViewModel::updateMemo,
-        onCreateMemo = { content ->
-            editorViewModel.createMemo(content) {
-                pendingNewMemoScroll = true
-            }
-        },
-        onSaveImage = editorViewModel::saveImage,
-        onLanShare = onNavigateToShare,
-        onDismiss = editorViewModel::discardInputs,
-        onImageDirectoryMissing = directoryGuideController::requestImage,
-        onCameraCaptureError = { error ->
-            scope.launch {
-                snackbarHostState.showSnackbar(
-                    error.message ?: unknownErrorMessage,
-                )
-            }
-        },
         availableTags = allTags,
-        isRecordingFlow = recordingViewModel.isRecording,
-        recordingDurationFlow = recordingViewModel.recordingDuration,
-        recordingAmplitudeFlow = recordingViewModel.recordingAmplitude,
-        onStartRecording = {
-            if (voiceDir == null) {
-                directoryGuideController.requestVoice()
-            } else {
-                recordingViewModel.startRecording()
-            }
-        },
-        onCancelRecording = recordingViewModel::cancelRecording,
-        onStopRecording = {
-            recordingViewModel.stopRecording { markdown ->
-                editorController.appendMarkdownBlock(markdown)
-            }
-        },
-        hints =
-            if (showInputHints) {
-                listOf(
-                    stringResource(R.string.input_hint_1),
-                    stringResource(R.string.input_hint_2),
-                    stringResource(R.string.input_hint_3),
-                    stringResource(R.string.input_hint_4),
-                    stringResource(R.string.input_hint_5),
-                    stringResource(R.string.input_hint_6),
-                    stringResource(R.string.input_hint_7),
-                )
-            } else {
-                emptyList()
-            },
-        onVersionHistory = { state ->
-            val memo = state.memo as? com.lomo.domain.model.Memo
-            if (memo != null) {
-                viewModel.loadVersionHistory(memo)
-            }
-        },
-        onTogglePin = viewModel::setMemoPinned,
-        showVersionHistory = gitSyncEnabled,
+        showInputHints = showInputHints,
+        onNavigateToShare = onNavigateToShare,
+        onPendingNewMemoScroll = { pendingNewMemoScroll = true },
     ) { showMenu, openEditor ->
         var isMemoFilterSheetVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -326,7 +257,7 @@ fun MainScreen(
                 viewModel.clearMemoDateRange()
             },
             onOpenMemoFilterPanel = { isMemoFilterSheetVisible = true },
-            onOpenCreateMemo = { editorController.openForCreate(draftText) },
+            onOpenCreateMemo = { editorController.openForCreate(editorViewModel.draftText.value) },
             onRefreshMemos = viewModel::refresh,
             onRefreshingChange = { isRefreshing = it },
         ) { actions ->
@@ -391,7 +322,164 @@ fun MainScreen(
                     onGoToSettings = onNavigateToSettings,
                 ),
         )
+    }
+}
 
+private data class DraftAutosaveState(
+    val editingMemoId: String?,
+    val text: String,
+    val isVisible: Boolean,
+)
+
+@Composable
+private fun rememberInputHints(showInputHints: Boolean): List<String> {
+    val hint1 = stringResource(R.string.input_hint_1)
+    val hint2 = stringResource(R.string.input_hint_2)
+    val hint3 = stringResource(R.string.input_hint_3)
+    val hint4 = stringResource(R.string.input_hint_4)
+    val hint5 = stringResource(R.string.input_hint_5)
+    val hint6 = stringResource(R.string.input_hint_6)
+    val hint7 = stringResource(R.string.input_hint_7)
+
+    return remember(showInputHints, hint1, hint2, hint3, hint4, hint5, hint6, hint7) {
+        if (!showInputHints) {
+            emptyList()
+        } else {
+            listOf(hint1, hint2, hint3, hint4, hint5, hint6, hint7)
+        }
+    }
+}
+
+@Composable
+private fun MainScreenTransientEffects(
+    viewModel: MainViewModel,
+    editorViewModel: MemoEditorViewModel,
+    uiMemos: List<MemoUiModel>,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    editorController: com.lomo.app.feature.memo.MemoEditorController,
+    directoryGuideController: MainDirectoryGuideController,
+    snackbarHostState: SnackbarHostState,
+    unknownErrorMessage: String,
+) {
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val editorErrorMessage by editorViewModel.errorMessage.collectAsStateWithLifecycle()
+    val sharedContentEvents by viewModel.sharedContentEvents.collectAsStateWithLifecycle()
+    val pendingSharedImageEvents by viewModel.pendingSharedImageEvents.collectAsStateWithLifecycle()
+    val appActionEvents by viewModel.appActionEvents.collectAsStateWithLifecycle()
+    val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
+    val draftText by editorViewModel.draftText.collectAsStateWithLifecycle()
+
+    MainScreenEventEffectsHost(
+        sharedContentEvents = sharedContentEvents,
+        appActionEvents = appActionEvents,
+        pendingSharedImageEvents = pendingSharedImageEvents,
+        imageDirectory = imageDirectory,
+        errorMessage = errorMessage,
+        editorErrorMessage = editorErrorMessage,
+        snackbarHostState = snackbarHostState,
+        unknownErrorMessage = unknownErrorMessage,
+        onAppendMarkdown = editorController::appendMarkdownBlock,
+        onAppendImageMarkdown = editorController::appendImageMarkdown,
+        onEnsureEditorVisible = editorController::ensureVisible,
+        onOpenCreateMemo = { editorController.openForCreate(draftText) },
+        onOpenEditMemo = editorController::openForEdit,
+        onFocusMemoInList = { memoId ->
+            val index = uiMemos.indexOfFirst { it.memo.id == memoId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+                true
+            } else {
+                false
+            }
+        },
+        onResolveMemoById = viewModel::resolveMemoById,
+        onSaveImage = { uri, onResult -> editorViewModel.saveImage(uri = uri, onResult = onResult) },
+        onRequireImageDirectory = directoryGuideController::requestImage,
+        onConsumeSharedContentEvent = viewModel::consumeSharedContentEvent,
+        onConsumeAppActionEvent = viewModel::consumeAppActionEvent,
+        onConsumePendingSharedImageEvent = viewModel::consumePendingSharedImageEvent,
+        onClearMainError = viewModel::clearError,
+        onClearEditorError = editorViewModel::clearError,
+    )
+}
+
+@Composable
+private fun MainScreenInteractionBindings(
+    viewModel: MainViewModel,
+    editorViewModel: MemoEditorViewModel,
+    recordingViewModel: RecordingViewModel,
+    editorController: com.lomo.app.feature.memo.MemoEditorController,
+    directoryGuideController: MainDirectoryGuideController,
+    scope: kotlinx.coroutines.CoroutineScope,
+    snackbarHostState: SnackbarHostState,
+    unknownErrorMessage: String,
+    shareCardStyle: String,
+    shareCardShowTime: Boolean,
+    quickSaveOnBackEnabled: Boolean,
+    availableTags: List<String>,
+    showInputHints: Boolean,
+    onNavigateToShare: (String, Long) -> Unit,
+    onPendingNewMemoScroll: () -> Unit,
+    content: @Composable ((com.lomo.ui.component.menu.MemoMenuState) -> Unit, (com.lomo.domain.model.Memo) -> Unit) -> Unit,
+) {
+    val activeDayCount by viewModel.activeDayCount.collectAsStateWithLifecycle()
+    val gitSyncEnabled by viewModel.gitSyncEnabled.collectAsStateWithLifecycle()
+    val versionHistoryState by viewModel.versionHistoryState.collectAsStateWithLifecycle()
+    val imageDirectory by viewModel.imageDirectory.collectAsStateWithLifecycle()
+    val voiceDirectory by viewModel.voiceDirectory.collectAsStateWithLifecycle()
+    val inputHints = rememberInputHints(showInputHints = showInputHints)
+
+    MemoInteractionHost(
+        shareCardStyle = shareCardStyle,
+        shareCardShowTime = shareCardShowTime,
+        activeDayCount = activeDayCount,
+        imageDirectory = imageDirectory,
+        controller = editorController,
+        quickSaveOnBackEnabled = quickSaveOnBackEnabled,
+        onDeleteMemo = viewModel::deleteMemo,
+        onUpdateMemo = editorViewModel::updateMemo,
+        onCreateMemo = { contentText ->
+            editorViewModel.createMemo(contentText) {
+                onPendingNewMemoScroll()
+            }
+        },
+        onSaveImage = editorViewModel::saveImage,
+        onLanShare = onNavigateToShare,
+        onDismiss = editorViewModel::discardInputs,
+        onImageDirectoryMissing = directoryGuideController::requestImage,
+        onCameraCaptureError = { error ->
+            scope.launch {
+                snackbarHostState.showSnackbar(error.message ?: unknownErrorMessage)
+            }
+        },
+        availableTags = availableTags,
+        isRecordingFlow = recordingViewModel.isRecording,
+        recordingDurationFlow = recordingViewModel.recordingDuration,
+        recordingAmplitudeFlow = recordingViewModel.recordingAmplitude,
+        onStartRecording = {
+            if (voiceDirectory == null) {
+                directoryGuideController.requestVoice()
+            } else {
+                recordingViewModel.startRecording()
+            }
+        },
+        onCancelRecording = recordingViewModel::cancelRecording,
+        onStopRecording = {
+            recordingViewModel.stopRecording { markdown ->
+                editorController.appendMarkdownBlock(markdown)
+            }
+        },
+        hints = inputHints,
+        onVersionHistory = { state ->
+            val memo = state.memo as? com.lomo.domain.model.Memo
+            if (memo != null) {
+                viewModel.loadVersionHistory(memo)
+            }
+        },
+        onTogglePin = viewModel::setMemoPinned,
+        showVersionHistory = gitSyncEnabled,
+    ) { showMenu, openEditor ->
+        content(showMenu, openEditor)
         VersionHistoryOverlay(
             state = versionHistoryState,
             onDismiss = viewModel::dismissVersionHistory,

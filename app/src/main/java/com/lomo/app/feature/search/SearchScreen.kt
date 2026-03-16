@@ -208,7 +208,7 @@ fun SearchScreen(
                             freeTextCopyEnabled = freeTextCopyEnabled,
                             onMemoEdit = openEditor,
                             onShowMenu = showMenu,
-                            animation = MemoCardListAnimation.FadeIn,
+                            animation = MemoCardListAnimation.None,
                             contentPadding =
                                 PaddingValues(
                                     top = AppSpacing.Medium,

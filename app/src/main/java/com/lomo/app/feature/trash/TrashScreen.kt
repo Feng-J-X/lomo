@@ -187,10 +187,16 @@ fun TrashScreen(
                                     fadeOutSpec = null,
                                     placementSpec = spring(stiffness = Spring.StiffnessMediumLow),
                                 ).fillMaxWidth()
-                                .graphicsLayer {
-                                    this.alpha = deleteAlpha
-                                    compositingStrategy = CompositingStrategy.ModulateAlpha
-                                },
+                                .then(
+                                    if (deleteAlpha < 0.999f) {
+                                        Modifier.graphicsLayer {
+                                            alpha = deleteAlpha
+                                            compositingStrategy = CompositingStrategy.ModulateAlpha
+                                        }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
                     ) {
                         MemoCard(
                             content = memo.content,

@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -37,6 +38,10 @@ import com.lomo.app.feature.image.createImageViewerRequest
 import com.lomo.app.feature.memo.MemoCardEntry
 import com.lomo.domain.model.Memo
 import com.lomo.ui.component.menu.MemoMenuState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.withContext
 
 private const val PRELOAD_LOOKAHEAD_COUNT = 5
 private const val PRELOAD_EVENT_THROTTLE_MS = 150L
@@ -67,20 +72,26 @@ internal fun MemoListContent(
     val context = LocalContext.current
     val imageLoader = context.imageLoader
     val preloadGate = remember { ImagePreloadGate() }
+    val latestMemos by rememberUpdatedState(memos)
 
-    LaunchedEffect(listState, memos, preloadGate) {
+    LaunchedEffect(listState, context, imageLoader, preloadGate) {
         snapshotFlow {
             listState.firstVisibleItemIndex to listState.layoutInfo.visibleItemsInfo.size
-        }.collect { (firstVisible, visibleCount) ->
-            val preloadStart = firstVisible + visibleCount
-            val preloadEnd = preloadStart + PRELOAD_LOOKAHEAD_COUNT
-            val preloadCandidates =
-                (preloadStart..preloadEnd)
-                    .asSequence()
-                    .filter { index -> index in memos.indices }
-                    .flatMap { index -> memos[index].imageUrls.asSequence() }
-                    .toList()
-            val urlsToPreload = preloadGate.selectUrlsToEnqueue(preloadCandidates)
+        }.distinctUntilChanged()
+            .collectLatest { (firstVisible, visibleCount) ->
+                val urlsToPreload =
+                    withContext(Dispatchers.Default) {
+                        val currentMemos = latestMemos
+                        val preloadStart = firstVisible + visibleCount
+                        val preloadEnd = preloadStart + PRELOAD_LOOKAHEAD_COUNT
+                        val preloadCandidates =
+                            (preloadStart..preloadEnd)
+                                .asSequence()
+                                .filter { index -> index in currentMemos.indices }
+                                .flatMap { index -> currentMemos[index].imageUrls.asSequence() }
+                                .toList()
+                        preloadGate.selectUrlsToEnqueue(preloadCandidates)
+                    }
             urlsToPreload.forEach { url ->
                 val request =
                     ImageRequest
@@ -89,7 +100,7 @@ internal fun MemoListContent(
                         .build()
                 imageLoader.enqueue(request)
             }
-        }
+            }
     }
 
     PullToRefreshBox(
@@ -176,10 +187,16 @@ internal fun MemoListContent(
                                 fadeOutSpec = null,
                                 placementSpec = spring(stiffness = Spring.StiffnessLow),
                             ).fillMaxWidth()
-                            .graphicsLayer {
-                                this.alpha = deleteAlpha
-                                compositingStrategy = CompositingStrategy.ModulateAlpha
-                            },
+                            .then(
+                                if (deleteAlpha < 0.999f) {
+                                    Modifier.graphicsLayer {
+                                        alpha = deleteAlpha
+                                        compositingStrategy = CompositingStrategy.ModulateAlpha
+                                    }
+                                } else {
+                                    Modifier
+                                },
+                            ),
                 )
             }
         }

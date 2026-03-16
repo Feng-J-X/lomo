@@ -26,6 +26,7 @@ import com.lomo.ui.component.menu.MemoMenuState
 import com.lomo.ui.theme.MotionTokens
 
 enum class MemoCardListAnimation {
+    None,
     FadeIn,
     Placement,
 }
@@ -70,6 +71,10 @@ fun MemoCardList(
 
             val itemModifier =
                 when (animation) {
+                    MemoCardListAnimation.None -> {
+                        Modifier
+                    }
+
                     MemoCardListAnimation.FadeIn -> {
                         val animatedAlpha = remember { Animatable(0f) }
                         LaunchedEffect(memo.id) {

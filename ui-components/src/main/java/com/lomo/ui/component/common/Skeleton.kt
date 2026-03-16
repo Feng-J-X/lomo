@@ -67,9 +67,10 @@ fun shimmerBrush(
     }
 
 @Composable
-fun SkeletonMemoItem(modifier: Modifier = Modifier) {
-    val brush = shimmerBrush()
-
+fun SkeletonMemoItem(
+    modifier: Modifier = Modifier,
+    brush: Brush = shimmerBrush(),
+) {
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = AppShapes.Medium, // Match MemoCard shape
@@ -134,7 +135,8 @@ fun SkeletonMemoItem(modifier: Modifier = Modifier) {
 
 @Composable
 fun MemoListSkeleton(modifier: Modifier = Modifier) {
+    val brush = shimmerBrush()
     Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        repeat(5) { SkeletonMemoItem() }
+        repeat(5) { SkeletonMemoItem(brush = brush) }
     }
 }

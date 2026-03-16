@@ -1,10 +1,6 @@
 package com.lomo.ui.component.markdown
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -40,8 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImagePainter
-import coil3.compose.SubcomposeAsyncImage
-import coil3.decode.DataSource
+import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import com.lomo.ui.R
 import com.lomo.ui.theme.LomoTheme
@@ -115,50 +110,45 @@ internal fun MarkdownImageBlock(
             .let { clickable -> if (onImageClick != null) clickable.clickable { onImageClick(destination) } else clickable }
             .then(sharedModifier)
 
-    SubcomposeAsyncImage(
-        model = model,
-        contentDescription = image.title ?: defaultContentDescription,
-        modifier = modifier,
-        contentScale = ContentScale.FillWidth,
-    ) {
-        val state by painter.state.collectAsState()
+    val painter = rememberAsyncImagePainter(model)
+    val state by painter.state.collectAsState()
 
-        val newAspectRatio =
-            (state as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize?.let { size ->
-                if (size.width > 0f && size.height > 0f) size.width / size.height else null
-            }
-
-        LaunchedEffect(destination, newAspectRatio) {
-            if (newAspectRatio != null && newAspectRatio != aspectRatio) {
-                MarkdownImageCache.put(destination, newAspectRatio)
-                aspectRatio = newAspectRatio
-            }
+    val newAspectRatio =
+        (state as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize?.let { size ->
+            if (size.width > 0f && size.height > 0f) size.width / size.height else null
         }
 
-        when (val current = state) {
+    LaunchedEffect(destination, newAspectRatio) {
+        if (newAspectRatio != null && newAspectRatio != aspectRatio) {
+            MarkdownImageCache.put(destination, newAspectRatio)
+            aspectRatio = newAspectRatio
+        }
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        when (state) {
             is AsyncImagePainter.State.Loading -> {
-                ImageLoadingPlaceholder()
+                ImageLoadingPlaceholder(Modifier.fillMaxSize())
             }
 
             is AsyncImagePainter.State.Success -> {
-                if (current.result.dataSource != DataSource.MEMORY_CACHE) {
-                    ImageWithFadeIn(painter, image.title)
-                } else {
-                    Image(
-                        painter = painter,
-                        contentDescription = image.title ?: defaultContentDescription,
-                        contentScale = ContentScale.FillWidth,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
+                Image(
+                    painter = painter,
+                    contentDescription = image.title ?: defaultContentDescription,
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             is AsyncImagePainter.State.Error -> {
-                ImageErrorPlaceholder()
+                ImageErrorPlaceholder(Modifier.fillMaxSize())
             }
 
             else -> {
-                ImageEmptyPlaceholder()
+                ImageEmptyPlaceholder(Modifier.fillMaxSize())
             }
         }
     }
@@ -228,10 +218,10 @@ internal fun MarkdownImagePager(
 }
 
 @Composable
-private fun ImageLoadingPlaceholder() {
+private fun ImageLoadingPlaceholder(modifier: Modifier = Modifier) {
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .heightIn(min = 100.dp)
                 .background(
@@ -249,10 +239,10 @@ private fun ImageLoadingPlaceholder() {
 }
 
 @Composable
-private fun ImageErrorPlaceholder() {
+private fun ImageErrorPlaceholder(modifier: Modifier = Modifier) {
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .height(60.dp)
                 .background(
@@ -270,10 +260,10 @@ private fun ImageErrorPlaceholder() {
 }
 
 @Composable
-private fun ImageEmptyPlaceholder() {
+private fun ImageEmptyPlaceholder(modifier: Modifier = Modifier) {
     Box(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
                 .heightIn(min = 60.dp)
                 .background(
@@ -281,29 +271,6 @@ private fun ImageEmptyPlaceholder() {
                     RoundedCornerShape(8.dp),
                 ),
     )
-}
-
-@Composable
-private fun ImageWithFadeIn(
-    painter: coil3.compose.AsyncImagePainter,
-    title: String?,
-) {
-    val defaultContentDescription = stringResource(R.string.markdown_image_content_description)
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(300)),
-        exit = fadeOut(),
-    ) {
-        Image(
-            painter = painter,
-            contentDescription = title ?: defaultContentDescription,
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
 }
 
 @Preview(showBackground = true)

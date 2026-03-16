@@ -131,6 +131,22 @@ fun CalendarHeatmap(
         val latestStartDay by rememberUpdatedState(startDay)
         val latestToday by rememberUpdatedState(today)
         val latestSelectedDate by rememberUpdatedState(selectedDate)
+        val monthLabels =
+            remember(startDay, totalWeeks) {
+                buildMonthLabels(
+                    startDay = startDay,
+                    totalWeeks = totalWeeks,
+                )
+            }
+        val heatmapCells =
+            remember(startDay, today, totalWeeks, memoCountByDate) {
+                buildHeatmapCells(
+                    startDay = startDay,
+                    today = today,
+                    totalWeeks = totalWeeks,
+                    memoCountByDate = memoCountByDate,
+                )
+            }
 
         LaunchedEffect(horizontalScrollState.maxValue, totalWeeks) {
             if (horizontalScrollState.maxValue > 0 && horizontalScrollState.value < horizontalScrollState.maxValue) {
@@ -209,64 +225,45 @@ fun CalendarHeatmap(
                             },
                 ) {
                     // Draw Month Labels
-                    var currentMonth = -1
-                    for (week in 0 until totalWeeks) {
-                        val dateOfWeekStart = startDay.plusWeeks(week.toLong())
-                        val month = dateOfWeekStart.monthValue
-
-                        if (month != currentMonth) {
-                            // Avoid drawing label too close to the right edge if it's the very last week
-                            if (week < totalWeeks - 2 || totalWeeks < 3) {
-                                val monthName = dateOfWeekStart.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-                                drawContext.canvas.nativeCanvas.drawText(
-                                    monthName,
-                                    week * (cellSizePx + spacingPx),
-                                    monthLabelHeightPx - 4.dp.toPx(),
-                                    textPaint,
-                                )
-                            }
-                            currentMonth = month
-                        }
+                    monthLabels.forEach { label ->
+                        drawContext.canvas.nativeCanvas.drawText(
+                            label.text,
+                            label.week * (cellSizePx + spacingPx),
+                            monthLabelHeightPx - 4.dp.toPx(),
+                            textPaint,
+                        )
                     }
 
                     // Draw Grid
-                    for (week in 0 until totalWeeks) {
-                        for (day in 0..6) {
-                            val date = startDay.plusWeeks(week.toLong()).plusDays(day.toLong())
-                            if (date.isAfter(today)) continue
+                    heatmapCells.forEach { cell ->
+                        val color =
+                            when {
+                                cell.count == 0 -> emptyColor
+                                cell.count <= 1 -> level1Color
+                                cell.count <= 3 -> level2Color
+                                cell.count <= 6 -> level3Color
+                                else -> level4Color
+                            }
+                        val left = cell.week * (cellSizePx + spacingPx)
+                        val top = monthLabelHeightPx + cell.day * (cellSizePx + spacingPx)
 
-                            val count = memoCountByDate[date] ?: 0
-                            val color =
-                                when {
-                                    count == 0 -> emptyColor
-                                    count <= 1 -> level1Color
-                                    count <= 3 -> level2Color
-                                    count <= 6 -> level3Color
-                                    else -> level4Color
-                                }
+                        drawRoundRect(
+                            color = color,
+                            topLeft = Offset(left, top),
+                            size = Size(cellSizePx, cellSizePx),
+                            cornerRadius = CornerRadius(cornerRadiusPx),
+                        )
 
-                            val left = week * (cellSizePx + spacingPx)
-                            val top = monthLabelHeightPx + day * (cellSizePx + spacingPx)
-
+                        if (cell.date == selectedDate) {
                             drawRoundRect(
-                                color = color,
+                                color = level4Color,
                                 topLeft = Offset(left, top),
                                 size = Size(cellSizePx, cellSizePx),
                                 cornerRadius = CornerRadius(cornerRadiusPx),
+                                style =
+                                    androidx.compose.ui.graphics.drawscope
+                                        .Stroke(width = 2.dp.toPx()),
                             )
-
-                            // Highlight selected cell border
-                            if (date == selectedDate) {
-                                drawRoundRect(
-                                    color = level4Color,
-                                    topLeft = Offset(left, top),
-                                    size = Size(cellSizePx, cellSizePx),
-                                    cornerRadius = CornerRadius(cornerRadiusPx),
-                                    style =
-                                        androidx.compose.ui.graphics.drawscope
-                                            .Stroke(width = 2.dp.toPx()),
-                                )
-                            }
                         }
                     }
                 }
@@ -390,6 +387,64 @@ private data class HeatmapCellHit(
     val row: Int,
     val date: LocalDate,
 )
+
+private data class MonthLabel(
+    val week: Int,
+    val text: String,
+)
+
+private data class HeatmapCell(
+    val week: Int,
+    val day: Int,
+    val date: LocalDate,
+    val count: Int,
+)
+
+private fun buildMonthLabels(
+    startDay: LocalDate,
+    totalWeeks: Int,
+): List<MonthLabel> {
+    var currentMonth = -1
+    val labels = mutableListOf<MonthLabel>()
+    for (week in 0 until totalWeeks) {
+        val dateOfWeekStart = startDay.plusWeeks(week.toLong())
+        val month = dateOfWeekStart.monthValue
+        if (month != currentMonth) {
+            if (week < totalWeeks - 2 || totalWeeks < 3) {
+                labels += MonthLabel(
+                    week = week,
+                    text = dateOfWeekStart.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                )
+            }
+            currentMonth = month
+        }
+    }
+    return labels
+}
+
+private fun buildHeatmapCells(
+    startDay: LocalDate,
+    today: LocalDate,
+    totalWeeks: Int,
+    memoCountByDate: Map<LocalDate, Int>,
+): List<HeatmapCell> {
+    val cells = ArrayList<HeatmapCell>(totalWeeks * DAYS_PER_WEEK)
+    for (week in 0 until totalWeeks) {
+        for (day in 0 until DAYS_PER_WEEK) {
+            val date = startDay.plusWeeks(week.toLong()).plusDays(day.toLong())
+            if (date.isAfter(today)) {
+                continue
+            }
+            cells += HeatmapCell(
+                week = week,
+                day = day,
+                date = date,
+                count = memoCountByDate[date] ?: 0,
+            )
+        }
+    }
+    return cells
+}
 
 private class HeatmapPopupPositionProvider(
     private val contentOffset: Offset,
