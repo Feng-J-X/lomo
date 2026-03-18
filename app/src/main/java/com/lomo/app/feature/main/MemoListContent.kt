@@ -37,6 +37,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.imageLoader
 import coil3.request.ImageRequest
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.lomo.app.R
 import com.lomo.app.feature.image.ImageViewerRequest
 import com.lomo.app.feature.image.createImageViewerRequest
@@ -61,6 +62,7 @@ private const val PRELOAD_TRACKED_URL_LIMIT = 512
 @Composable
 internal fun MemoListContent(
     memos: List<MemoUiModel>,
+    deletingMemoIds: kotlinx.coroutines.flow.StateFlow<Set<String>>,
     listState: LazyListState,
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
@@ -79,6 +81,7 @@ internal fun MemoListContent(
     val imageLoader = context.imageLoader
     val preloadGate = remember { ImagePreloadGate() }
     val latestMemos by rememberUpdatedState(memos)
+    val deletingIds by deletingMemoIds.collectAsStateWithLifecycle()
 
     LaunchedEffect(listState, context, imageLoader, preloadGate) {
         snapshotFlow {
@@ -150,8 +153,9 @@ internal fun MemoListContent(
                 key = { it.memo.id },
                 contentType = { "memo" },
             ) { uiModel ->
+                val isDeleting = uiModel.memo.id in deletingIds
                 val deleteAlpha by androidx.compose.animation.core.animateFloatAsState(
-                    targetValue = if (uiModel.isDeleting) 0f else 1f,
+                    targetValue = if (isDeleting) 0f else 1f,
                     animationSpec =
                         androidx.compose.animation.core.tween(
                             durationMillis = 300,

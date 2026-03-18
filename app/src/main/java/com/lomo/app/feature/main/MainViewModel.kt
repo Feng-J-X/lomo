@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
@@ -148,7 +149,8 @@ class MainViewModel
         private val _uiState = MutableStateFlow<MainScreenState>(MainScreenState.Loading)
         val uiState: StateFlow<MainScreenState> = _uiState
 
-        private val deletingMemoIds = MutableStateFlow<Set<String>>(emptySet())
+        private val _deletingMemoIds = MutableStateFlow<Set<String>>(emptySet())
+        val deletingMemoIds: StateFlow<Set<String>> = _deletingMemoIds.asStateFlow()
 
         private val _rootDirectory = MutableStateFlow<String?>(null)
         val rootDirectory: StateFlow<String?> = _rootDirectory
@@ -204,81 +206,66 @@ class MainViewModel
             memos
                 .onEach { list ->
                     val existingIds = list.asSequence().map { it.id }.toSet()
-                    deletingMemoIds.value = deletingMemoIds.value.intersect(existingIds)
+                    _deletingMemoIds.value = _deletingMemoIds.value.intersect(existingIds)
                 }.launchIn(viewModelScope)
         }
 
         @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
         val uiMemos: StateFlow<List<MemoUiModel>> =
-            combine(
-                combine(memos, rootDirectory, imageDirectory, imageMap) {
-                    currentMemos,
-                    rootDir,
-                    imageDir,
-                    currentImageMap,
-                    ->
-                    currentMemos to
-                        UiMemoMappingInput(
-                            rootDirectory = rootDir,
-                            imageDirectory = imageDir,
-                            imageMap = currentImageMap,
-                            prioritizedMemoIds = emptySet(),
-                        )
-                }.distinctUntilChanged()
-                    .mapLatest { (currentMemos, input) ->
-                        memoUiMapper.mapToUiModels(
-                            memos = currentMemos,
-                            rootPath = input.rootDirectory,
-                            imagePath = input.imageDirectory,
-                            imageMap = input.imageMap,
-                            prioritizedMemoIds = input.prioritizedMemoIds,
-                        )
-                    },
-                deletingMemoIds,
-            ) { uiModels, deletingIds ->
-                uiModels.map { uiModel ->
-                    uiModel.copy(isDeleting = uiModel.memo.id in deletingIds)
+            combine(memos, rootDirectory, imageDirectory, imageMap) {
+                currentMemos,
+                rootDir,
+                imageDir,
+                currentImageMap,
+                ->
+                currentMemos to
+                    UiMemoMappingInput(
+                        rootDirectory = rootDir,
+                        imageDirectory = imageDir,
+                        imageMap = currentImageMap,
+                        prioritizedMemoIds = emptySet(),
+                    )
+            }.distinctUntilChanged()
+                .mapLatest { (currentMemos, input) ->
+                    memoUiMapper.mapToUiModels(
+                        memos = currentMemos,
+                        rootPath = input.rootDirectory,
+                        imagePath = input.imageDirectory,
+                        imageMap = input.imageMap,
+                        prioritizedMemoIds = input.prioritizedMemoIds,
+                    )
                 }
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
         val galleryUiMemos: StateFlow<List<MemoUiModel>> =
-            combine(
-                combine(allMemos, rootDirectory, imageDirectory, imageMap) {
-                    currentMemos,
-                    rootDir,
-                    imageDir,
-                    currentImageMap,
-                    ->
-                    currentMemos
-                        .asSequence()
-                        .filter { memo -> memo.imageUrls.isNotEmpty() }
-                        .toList() to
-                        UiMemoMappingInput(
-                            rootDirectory = rootDir,
-                            imageDirectory = imageDir,
-                            imageMap = currentImageMap,
-                            prioritizedMemoIds = emptySet(),
-                        )
-                }.distinctUntilChanged()
-                    .mapLatest { (currentMemos, input) ->
-                        memoUiMapper.mapToUiModels(
-                            memos = currentMemos,
-                            rootPath = input.rootDirectory,
-                            imagePath = input.imageDirectory,
-                            imageMap = input.imageMap,
-                            prioritizedMemoIds = input.prioritizedMemoIds,
-                        )
-                    },
-                deletingMemoIds,
-            ) { uiModels, deletingIds ->
-                uiModels
+            combine(allMemos, rootDirectory, imageDirectory, imageMap) {
+                currentMemos,
+                rootDir,
+                imageDir,
+                currentImageMap,
+                ->
+                currentMemos
                     .asSequence()
-                    .filter { uiModel -> uiModel.imageUrls.isNotEmpty() }
-                    .map { uiModel -> uiModel.copy(isDeleting = uiModel.memo.id in deletingIds) }
-                    .sortedByDescending { uiModel -> uiModel.memo.timestamp }
-                    .toList()
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                    .filter { memo -> memo.imageUrls.isNotEmpty() }
+                    .sortedByDescending { memo -> memo.timestamp }
+                    .toList() to
+                    UiMemoMappingInput(
+                        rootDirectory = rootDir,
+                        imageDirectory = imageDir,
+                        imageMap = currentImageMap,
+                        prioritizedMemoIds = emptySet(),
+                    )
+            }.distinctUntilChanged()
+                .mapLatest { (currentMemos, input) ->
+                    memoUiMapper.mapToUiModels(
+                        memos = currentMemos,
+                        rootPath = input.rootDirectory,
+                        imagePath = input.imageDirectory,
+                        imageMap = input.imageMap,
+                        prioritizedMemoIds = input.prioritizedMemoIds,
+                    )
+                }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         fun onDirectorySelected(path: String) {
             viewModelScope.launch(Dispatchers.IO) {
@@ -367,7 +354,7 @@ class MainViewModel
                 val result =
                     runDeleteAnimationWithRollback(
                         itemId = memo.id,
-                        deletingIds = deletingMemoIds,
+                        deletingIds = _deletingMemoIds,
                     ) {
                         mainMemoMutationUseCase.deleteMemo(memo)
                     }
@@ -591,5 +578,4 @@ data class MemoUiModel(
     val imageUrls: ImmutableList<String> = persistentListOf(),
     val shouldShowExpand: Boolean = false,
     val collapsedSummary: String = "",
-    val isDeleting: Boolean = false,
 )

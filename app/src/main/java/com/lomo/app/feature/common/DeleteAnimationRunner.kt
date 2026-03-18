@@ -11,17 +11,35 @@ internal suspend fun runDeleteAnimationWithRollback(
     animationDelayMs: Long = 300L,
     mutation: suspend () -> Unit,
 ): Result<Unit> {
-    deletingIds.update { it + itemId }
+    return runDeleteAnimationWithRollback(
+        itemIds = setOf(itemId),
+        deletingIds = deletingIds,
+        animationDelayMs = animationDelayMs,
+        mutation = mutation,
+    )
+}
+
+internal suspend fun runDeleteAnimationWithRollback(
+    itemIds: Set<String>,
+    deletingIds: MutableStateFlow<Set<String>>,
+    animationDelayMs: Long = 300L,
+    mutation: suspend () -> Unit,
+): Result<Unit> {
+    if (itemIds.isEmpty()) {
+        return Result.success(Unit)
+    }
+
+    deletingIds.update { it + itemIds }
     delay(animationDelayMs)
 
     return try {
         mutation()
         Result.success(Unit)
     } catch (cancellation: CancellationException) {
-        deletingIds.update { it - itemId }
+        deletingIds.update { it - itemIds }
         throw cancellation
     } catch (throwable: Throwable) {
-        deletingIds.update { it - itemId }
+        deletingIds.update { it - itemIds }
         Result.failure(throwable)
     }
 }

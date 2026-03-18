@@ -274,6 +274,7 @@ fun MainScreen(
                 uiState = uiState,
                 hasItems = hasItems,
                 uiMemos = uiMemos,
+                deletingMemoIds = viewModel.deletingMemoIds,
                 listState = listState,
                 isRefreshing = isRefreshing,
                 onTodoClick = { memo, index, checked -> viewModel.updateMemo(memo, index, checked) },
@@ -507,6 +508,7 @@ private fun MainScreenRenderHost(
     uiState: MainViewModel.MainScreenState,
     hasItems: Boolean,
     uiMemos: List<MemoUiModel>,
+    deletingMemoIds: kotlinx.coroutines.flow.StateFlow<Set<String>>,
     listState: androidx.compose.foundation.lazy.LazyListState,
     isRefreshing: Boolean,
     onTodoClick: (com.lomo.domain.model.Memo, Int, Boolean) -> Unit,
@@ -643,6 +645,7 @@ private fun MainScreenRenderHost(
                                     } else {
                                         MemoListContent(
                                             memos = uiMemos,
+                                            deletingMemoIds = deletingMemoIds,
                                             listState = listState,
                                             isRefreshing = isRefreshing,
                                             onRefresh = actions.onRefresh,

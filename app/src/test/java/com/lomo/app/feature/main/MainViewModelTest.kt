@@ -37,6 +37,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -231,6 +232,23 @@ class MainViewModelTest {
                 ),
                 galleryUiMemos.map { it.imageUrls },
             )
+        }
+
+    @Test
+    fun `delete animation state does not rebuild uiMemos list`() =
+        runTest {
+            val memo = memo("memo-delete", LocalDate.of(2026, 3, 8), 10)
+            every { repository.getAllMemosList() } returns flowOf(listOf(memo))
+
+            val viewModel = createViewModel()
+            val initialUiMemos = viewModel.uiMemos.first { it.size == 1 }
+
+            viewModel.deleteMemo(memo)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue(viewModel.deletingMemoIds.value.contains(memo.id))
+            assertSame(initialUiMemos, viewModel.uiMemos.value)
+            assertSame(initialUiMemos.first(), viewModel.uiMemos.value.first())
         }
 
     @Test

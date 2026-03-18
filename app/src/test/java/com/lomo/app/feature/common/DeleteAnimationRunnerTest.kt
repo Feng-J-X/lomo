@@ -65,4 +65,41 @@ class DeleteAnimationRunnerTest {
             assertTrue(cancelled)
             assertFalse(deletingIds.value.contains("memo_1"))
         }
+
+    @Test
+    fun `keeps all deleting markers on bulk success`() =
+        runTest {
+            val deletingIds = MutableStateFlow(emptySet<String>())
+
+            val result =
+                runDeleteAnimationWithRollback(
+                    itemIds = setOf("memo_1", "memo_2"),
+                    deletingIds = deletingIds,
+                    animationDelayMs = 0L,
+                ) {
+                    Unit
+                }
+
+            assertTrue(result.isSuccess)
+            assertTrue(deletingIds.value.containsAll(setOf("memo_1", "memo_2")))
+        }
+
+    @Test
+    fun `rolls back all deleting markers on bulk failure`() =
+        runTest {
+            val deletingIds = MutableStateFlow(emptySet<String>())
+
+            val result =
+                runDeleteAnimationWithRollback(
+                    itemIds = setOf("memo_1", "memo_2"),
+                    deletingIds = deletingIds,
+                    animationDelayMs = 0L,
+                ) {
+                    throw IllegalStateException("bulk delete failed")
+                }
+
+            assertTrue(result.isFailure)
+            assertFalse(deletingIds.value.contains("memo_1"))
+            assertFalse(deletingIds.value.contains("memo_2"))
+        }
 }

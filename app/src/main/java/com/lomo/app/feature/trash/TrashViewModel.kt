@@ -16,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
@@ -39,7 +40,8 @@ class TrashViewModel
         private val _errorMessage = MutableStateFlow<String?>(null)
         val errorMessage: StateFlow<String?> = _errorMessage
 
-        private val deletingMemoIds = MutableStateFlow<Set<String>>(emptySet())
+        private val _deletingMemoIds = MutableStateFlow<Set<String>>(emptySet())
+        val deletingMemoIds: StateFlow<Set<String>> = _deletingMemoIds.asStateFlow()
 
         val imageMap: StateFlow<Map<String, android.net.Uri>> = imageMapProvider.imageMap
         val imageDirectory: StateFlow<String?> =
@@ -63,7 +65,7 @@ class TrashViewModel
             trashMemos
                 .onEach { memos ->
                     val existingIds = memos.asSequence().map { it.id }.toSet()
-                    deletingMemoIds.update { current -> current.intersect(existingIds) }
+                    _deletingMemoIds.update { current -> current.intersect(existingIds) }
                 }.launchIn(viewModelScope)
         }
 
@@ -78,41 +80,35 @@ class TrashViewModel
 
         @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
         val trashUiMemos: StateFlow<List<com.lomo.app.feature.main.MemoUiModel>> =
-            combine(
-                combine(trashMemos, rootDirectory, imageDirectory, imageMap) {
-                    memos,
-                    rootDir,
-                    imageDir,
-                    currentImageMap,
-                    ->
-                    UiMemoMappingInput(
-                        memos = memos,
-                        rootDirectory = rootDir,
-                        imageDirectory = imageDir,
-                        imageMap = currentImageMap,
+            combine(trashMemos, rootDirectory, imageDirectory, imageMap) {
+                memos,
+                rootDir,
+                imageDir,
+                currentImageMap,
+                ->
+                UiMemoMappingInput(
+                    memos = memos,
+                    rootDirectory = rootDir,
+                    imageDirectory = imageDir,
+                    imageMap = currentImageMap,
+                )
+            }.distinctUntilChanged()
+                .mapLatest { input ->
+                    memoUiMapper.mapToUiModels(
+                        memos = input.memos,
+                        rootPath = input.rootDirectory,
+                        imagePath = input.imageDirectory,
+                        imageMap = input.imageMap,
                     )
-                }.distinctUntilChanged()
-                    .mapLatest { input ->
-                        memoUiMapper.mapToUiModels(
-                            memos = input.memos,
-                            rootPath = input.rootDirectory,
-                            imagePath = input.imageDirectory,
-                            imageMap = input.imageMap,
-                        )
-                    },
-                deletingMemoIds,
-            ) { uiModels, deletingIds ->
-                uiModels.map { uiModel ->
-                    uiModel.copy(isDeleting = deletingIds.contains(uiModel.memo.id))
                 }
-            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+                .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
         fun restoreMemo(memo: Memo) {
             viewModelScope.launch {
                 val result =
                     runDeleteAnimationWithRollback(
                         itemId = memo.id,
-                        deletingIds = deletingMemoIds,
+                        deletingIds = _deletingMemoIds,
                     ) {
                         repository.restoreMemo(memo)
                     }
@@ -127,7 +123,7 @@ class TrashViewModel
                 val result =
                     runDeleteAnimationWithRollback(
                         itemId = memo.id,
-                        deletingIds = deletingMemoIds,
+                        deletingIds = _deletingMemoIds,
                     ) {
                         repository.deletePermanently(memo)
                     }
@@ -142,11 +138,16 @@ class TrashViewModel
                 val trashSnapshot = trashMemos.value
                 if (trashSnapshot.isEmpty()) return@launch
 
-                runCatching {
+                val result =
+                    runDeleteAnimationWithRollback(
+                        itemIds = trashSnapshot.asSequence().map { it.id }.toSet(),
+                        deletingIds = _deletingMemoIds,
+                    ) {
                     trashSnapshot.forEach { memo ->
                         repository.deletePermanently(memo)
                     }
-                }.exceptionOrNull()?.let { throwable ->
+                }
+                result.exceptionOrNull()?.let { throwable ->
                     _errorMessage.value = throwable.toUserMessage("Failed to clear trash")
                 }
             }

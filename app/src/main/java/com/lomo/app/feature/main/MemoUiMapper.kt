@@ -35,7 +35,6 @@ class MemoUiMapper
             rootPath: String?,
             imagePath: String?,
             imageMap: Map<String, Uri>,
-            deletingIds: Set<String> = emptySet(),
             prioritizedMemoIds: Set<String> = emptySet(),
         ): List<MemoUiModel> =
             withContext(Dispatchers.Default) {
@@ -60,7 +59,6 @@ class MemoUiMapper
                         rootPath = rootPath,
                         imagePath = imagePath,
                         imageMap = imageMap,
-                        isDeleting = memo.id in deletingIds,
                         precomputeMarkdown = memo.id in prioritizedIds,
                     )
                 }
@@ -71,7 +69,6 @@ class MemoUiMapper
             rootPath: String?,
             imagePath: String?,
             imageMap: Map<String, Uri>,
-            isDeleting: Boolean = false,
             precomputeMarkdown: Boolean = true,
             existingNode: ImmutableNode? = null,
             existingProcessedContent: String? = null,
@@ -99,7 +96,6 @@ class MemoUiMapper
                 imageUrls = imageUrls,
                 shouldShowExpand = shouldShowExpand,
                 collapsedSummary = collapsedSummary,
-                isDeleting = isDeleting,
             )
         }
 

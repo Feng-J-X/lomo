@@ -64,6 +64,7 @@ fun TrashScreen(
     viewModel: TrashViewModel = hiltViewModel(),
 ) {
     val trashMemos by viewModel.trashUiMemos.collectAsStateWithLifecycle()
+    val deletingMemoIds by viewModel.deletingMemoIds.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val appPreferences by viewModel.appPreferences.collectAsStateWithLifecycle()
     val dateFormat = appPreferences.dateFormat
@@ -163,8 +164,9 @@ fun TrashScreen(
                     contentType = { "memo" },
                 ) { uiModel ->
                     val memo = uiModel.memo
+                    val isDeleting = memo.id in deletingMemoIds
                     val deleteAlpha by androidx.compose.animation.core.animateFloatAsState(
-                        targetValue = if (uiModel.isDeleting) 0f else 1f,
+                        targetValue = if (isDeleting) 0f else 1f,
                         animationSpec =
                             androidx.compose.animation.core.tween(
                                 durationMillis = 300,
