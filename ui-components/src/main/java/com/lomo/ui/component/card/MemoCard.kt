@@ -24,7 +24,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,8 +41,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.lomo.ui.R
+import com.lomo.ui.component.markdown.MarkdownKnownTagFilter
 import com.lomo.ui.component.markdown.MarkdownRenderer
 import com.lomo.ui.text.normalizeCjkMixedSpacingForDisplay
 import com.lomo.ui.text.scriptAwareFor
@@ -76,7 +75,7 @@ fun MemoCard(
     todoOverrides: Map<Int, Boolean> = emptyMap(), // State overlay for checkboxes
     onImageClick: ((String) -> Unit)? = null,
     shouldShowExpand: Boolean = shouldShowMemoCardExpand(content),
-    collapsedSummary: String = buildMemoCardCollapsedSummary(content),
+    collapsedSummary: String = buildMemoCardCollapsedSummary(content, tags),
     menuContent: (@Composable () -> Unit)? = null,
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -222,48 +221,46 @@ fun MemoCard(
                             }
                         }.clip(AppShapes.Small),
             ) {
-                ProvideTextStyle(value = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp)) {
-                    if (useCollapsedSummary) {
-                        val displaySummary = collapsedSummary.normalizeCjkMixedSpacingForDisplay()
-                        val summaryStyle =
-                            MaterialTheme.typography
-                                .bodyLarge
-                                .copy(lineHeight = 24.sp)
-                                .scriptAwareFor(displaySummary)
-                        val summaryContent: @Composable () -> Unit = {
-                            Text(
-                                text = displaySummary,
-                                style = summaryStyle,
-                                textAlign = displaySummary.scriptAwareTextAlign(),
-                                maxLines = COLLAPSED_SUMMARY_MAX_LINES,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            )
-                        }
-                        if (allowFreeTextCopy) {
-                            SelectionContainer {
-                                summaryContent()
-                            }
-                        } else {
+                if (useCollapsedSummary) {
+                    val displaySummary = collapsedSummary.normalizeCjkMixedSpacingForDisplay()
+                    val summaryStyle =
+                        MaterialTheme.typography.bodyMedium
+                            .copy(color = MaterialTheme.colorScheme.onSurface)
+                            .scriptAwareFor(displaySummary)
+                    val summaryContent: @Composable () -> Unit = {
+                        Text(
+                            text = displaySummary,
+                            style = summaryStyle,
+                            textAlign = displaySummary.scriptAwareTextAlign(),
+                            maxLines = COLLAPSED_SUMMARY_MAX_LINES,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        )
+                    }
+                    if (allowFreeTextCopy) {
+                        SelectionContainer {
                             summaryContent()
                         }
                     } else {
-                        MarkdownRenderer(
-                            content = processedContent,
-                            precomputedNode = precomputedNode,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            maxVisibleBlocks =
-                                if (isCollapsedPreview) {
-                                    COLLAPSED_MAX_VISIBLE_BLOCKS
-                                } else {
-                                    Int.MAX_VALUE
-                                },
-                            onTodoClick = onTodoClick,
-                            todoOverrides = todoOverrides,
-                            onImageClick = onImageClick,
-                            enableTextSelection = allowFreeTextCopy,
-                        )
+                        summaryContent()
                     }
+                } else {
+                    MarkdownRenderer(
+                        content = processedContent,
+                        precomputedNode = precomputedNode,
+                        knownTagsToStrip = tags,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        maxVisibleBlocks =
+                            if (isCollapsedPreview) {
+                                COLLAPSED_MAX_VISIBLE_BLOCKS
+                            } else {
+                                Int.MAX_VALUE
+                            },
+                        onTodoClick = onTodoClick,
+                        todoOverrides = todoOverrides,
+                        onImageClick = onImageClick,
+                        enableTextSelection = allowFreeTextCopy,
+                    )
                 }
 
                 if (isCollapsedPreview) {
@@ -365,7 +362,10 @@ fun shouldShowMemoCardExpand(content: String): Boolean =
     content.length > EXPAND_CHAR_THRESHOLD ||
         content.lineSequence().count() > EXPAND_LINE_THRESHOLD
 
-fun buildMemoCardCollapsedSummary(content: String): String {
+fun buildMemoCardCollapsedSummary(
+    content: String,
+    tags: Iterable<String> = emptyList(),
+): String {
     if (content.isBlank()) return ""
 
     val lines = mutableListOf<String>()
@@ -377,13 +377,17 @@ fun buildMemoCardCollapsedSummary(content: String): String {
         }
 
         val line =
-            rawLine
-                .replace(MARKDOWN_IMAGE_PATTERN, "")
-                .replace(MARKDOWN_LINK_PATTERN, "$1")
-                .replace(MARKDOWN_INLINE_CODE_PATTERN, "$1")
-                .replace(MARKDOWN_BLOCK_PREFIX_PATTERN, "")
-                .replace(MARKDOWN_TASK_PREFIX_PATTERN, "")
-                .trim()
+            MarkdownKnownTagFilter
+                .stripInlineTags(
+                    input =
+                        rawLine
+                            .replace(MARKDOWN_IMAGE_PATTERN, "")
+                            .replace(MARKDOWN_LINK_PATTERN, "$1")
+                            .replace(MARKDOWN_INLINE_CODE_PATTERN, "$1")
+                            .replace(MARKDOWN_BLOCK_PREFIX_PATTERN, "")
+                            .replace(MARKDOWN_TASK_PREFIX_PATTERN, ""),
+                    tags = tags,
+                ).trim()
         if (line.isBlank()) continue
 
         val remaining = COLLAPSED_SUMMARY_MAX_CHARS - charCount

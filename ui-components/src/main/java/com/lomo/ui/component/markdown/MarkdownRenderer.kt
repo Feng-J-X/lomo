@@ -76,6 +76,7 @@ fun MarkdownRenderer(
     onImageClick: ((String) -> Unit)? = null,
     onTotalBlocks: ((Int) -> Unit)? = null,
     precomputedNode: ImmutableNode? = null,
+    knownTagsToStrip: List<String> = emptyList(),
     enableTextSelection: Boolean = false,
 ) {
     val root by
@@ -83,8 +84,13 @@ fun MarkdownRenderer(
             initialValue = precomputedNode,
             key1 = content,
             key2 = precomputedNode,
+            key3 = knownTagsToStrip,
         ) {
-            value = precomputedNode ?: withContext(Dispatchers.Default) { MarkdownParser.parse(content) }
+            value =
+                precomputedNode
+                    ?: withContext(Dispatchers.Default) {
+                        MarkdownKnownTagFilter.eraseKnownTags(MarkdownParser.parse(content), knownTagsToStrip)
+                    }
         }
 
     if (root == null) {
@@ -167,7 +173,10 @@ private fun MarkdownRendererFallback(
     enableTextSelection: Boolean = false,
 ) {
     val normalizedContent = remember(content) { content.normalizeCjkMixedSpacingForDisplay() }
-    val textStyle = MaterialTheme.typography.bodyLarge.scriptAwareFor(normalizedContent)
+    val textStyle =
+        MaterialTheme.typography.bodyMedium
+            .copy(color = MaterialTheme.colorScheme.onSurface)
+            .scriptAwareFor(normalizedContent)
 
     val fallbackContent: @Composable () -> Unit = {
         Text(

@@ -191,6 +191,32 @@ class MemoUiMapperTest {
     }
 
     @Test
+    fun `mapToUiModel removes known tags from collapsed summary`() {
+        val memo =
+            memo(
+                content =
+                    """
+                    #todo #work
+                    plain body #todo line
+                    """.trimIndent(),
+                tags = listOf("todo", "work"),
+            )
+
+        val uiModel =
+            mapper.mapToUiModel(
+                memo = memo,
+                rootPath = null,
+                imagePath = null,
+                imageMap = emptyMap(),
+                precomputeMarkdown = false,
+            )
+
+        assertFalse(uiModel.collapsedSummary.contains("#todo"))
+        assertFalse(uiModel.collapsedSummary.contains("#work"))
+        assertTrue(uiModel.collapsedSummary.contains("plain body line"))
+    }
+
+    @Test
     fun `mapToUiModel reparses markdown when processed content changed`() {
         val memo =
             memo(
